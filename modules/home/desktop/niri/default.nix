@@ -28,6 +28,11 @@ in
           touchpad.natural-scroll = { };
         };
 
+        cursor = {
+          xcursor-theme = "Nordzy-Emberlight";
+          xcursor-size = 24;
+        };
+
         layout = {
           gaps = 16;
           # Folio geometry, paired with the 36px Waybar exclusive zone.

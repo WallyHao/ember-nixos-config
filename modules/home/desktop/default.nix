@@ -7,5 +7,6 @@
     ./session-tools.nix
     ./security.nix
     ./clipboard.nix
+    ./cursor.nix
   ];
 }
