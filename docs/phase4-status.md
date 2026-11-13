@@ -46,7 +46,7 @@
 - systemd user service `niri-single-window-fullscreen` 订阅 Niri 事件流，
   当前工作区只有一个平铺窗口时调用 `maximize-window-to-edges`。
 - 出现第二个平铺窗口时恢复该窗口为 50% 列宽，使双窗口并排；关闭后再次最大化。
-- 该行为使用 Niri 的“最大化到屏幕边缘”，不等于应用级 fullscreen；应用级全屏由
-  `Super+F`（`fullscreen-window`）控制，自动单窗口逻辑会跳过真正的 fullscreen 窗口。
+- 该行为使用 Niri 的“最大化到屏幕边缘”，保留 Waybar；`Super+F` 也绑定到
+  `maximize-window-to-edges`，不再使用会覆盖状态栏的 `fullscreen-window`。
 - 已在本机临时运行验证：单窗口为 `1920x1044`，第二窗口出现后恢复 `936x1024`，
   关闭第二窗口后重新变为 `1920x1044`。

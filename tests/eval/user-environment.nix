@@ -105,7 +105,7 @@ let
       ]
       && ((bind "Super+Tab") ? toggle-overview)
       && ((bind "Super+Shift+Slash") ? show-hotkey-overlay)
-      && ((bind "Super+F") ? fullscreen-window)
+      && ((bind "Super+F") ? maximize-window-to-edges)
       && ((bind "Super+G") ? center-column)
       && ((bind "Super+S") ? screenshot-screen)
       && ((bind "Super+Shift+S") ? screenshot)

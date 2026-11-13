@@ -58,9 +58,9 @@ in
     _props.repeat = false;
     show-hotkey-overlay = { };
   };
-  "${modifier}+F" = bind "Toggle fullscreen" {
+  "${modifier}+F" = bind "Toggle maximize to screen edges" {
     _props.repeat = false;
-    fullscreen-window = { };
+    maximize-window-to-edges = { };
   };
   "${modifier}+G" = bind "Toggle workspace centering" {
     _props.repeat = false;
