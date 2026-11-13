@@ -30,6 +30,7 @@
     ./desktop
     ./desktop/input-method.nix
     ./tools/omp.nix
+    ./tools/btop.nix
     ./terminal/foot.nix
     ./terminal/tools.nix
     ./terminal/zsh.nix
