@@ -10,6 +10,7 @@
     ./persistence.nix
     ./platform.nix
     ./appearance/stylix.nix
+    ./appearance/newt.nix
     ./foundation
   ];
 }
