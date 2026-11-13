@@ -30,7 +30,7 @@ in
 
         cursor = {
           xcursor-theme = "Nordzy-Emberlight";
-          xcursor-size = 24;
+          xcursor-size = 48;
         };
 
         layout = {

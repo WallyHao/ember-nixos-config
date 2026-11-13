@@ -39,7 +39,7 @@ pkgs.stdenvNoCC.mkDerivation (finalAttrs: {
     for svg in tools/svgs/themes/Nordzy-Emberlight.svg tools/svgs/themes/Nordzy-Emberlight-spinner.svg; do
       sed -i \
         -e 's/#000000/#120b13/g' \
-        -e 's/#ffffff/#dcc9d2/g' \
+        -e 's/#ffffff/#b85753/g' \
         -e 's/#8fbcbb/#b85753/g' \
         -e 's/#00ff00/#8aa073/g' \
         -e 's/#ff0000/#b85753/g' \

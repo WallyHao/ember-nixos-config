@@ -13,7 +13,7 @@ in
       enable = true;
       package = cursorTheme;
       name = "Nordzy-Emberlight";
-      size = 24;
+      size = 48;
       gtk.enable = true;
       x11.enable = true;
     };
