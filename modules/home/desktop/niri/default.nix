@@ -47,7 +47,9 @@ in
           focus-ring = {
             on = { };
             width = 3;
-            active-color = c.base0A;
+            # base0A is the bright yellow accent; base08 keeps the same
+            # palette but gives a dimmer, redder focus ring.
+            active-color = c.base08;
             inactive-color = "#00000000";
             urgent-color = "#00000000";
           };
