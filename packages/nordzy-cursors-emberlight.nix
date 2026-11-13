@@ -27,30 +27,38 @@ pkgs.stdenvNoCC.mkDerivation (finalAttrs: {
     cp -a ${finalAttrs.src}/. .
     chmod -R u+w .
 
-    # render-pngs.py invokes `python`; provide a python3-backed shim.
-    mkdir -p bin
-    cat > bin/python <<EOF
-    #!${pkgs.bash}/bin/bash
-    exec ${pkgs.python3}/bin/python3 "$@"
-    EOF
-    chmod +x bin/python
-    export PATH="$PWD/bin:$PATH"
-
     export HOME="$TMPDIR"
     export XDG_CACHE_HOME="$TMPDIR/cache"
     export XDG_CONFIG_HOME="$TMPDIR/config"
 
-    # The generator moves the theme under xcursors/; create it explicitly.
-    mkdir -p xcursors
-    bash tools/custom_theme.sh \
-      -n Nordzy-Emberlight \
-      -f '#120b13' \
-      -b '#dcc9d2' \
-      -a '#b85753' \
-      -g '#8aa073' \
-      -r '#b85753' \
-      -p '#ae90c0' \
-      -o '#edd5a2'
+    mkdir -p tools/svgs/themes
+    cp tools/svgs/nordzy-templates/Nordzy-cursors-template.svg \
+      tools/svgs/themes/Nordzy-Emberlight.svg
+    cp tools/svgs/nordzy-templates/Nordzy-cursors-spinner-template.svg \
+      tools/svgs/themes/Nordzy-Emberlight-spinner.svg
+    for svg in tools/svgs/themes/Nordzy-Emberlight.svg tools/svgs/themes/Nordzy-Emberlight-spinner.svg; do
+      sed -i \
+        -e 's/#000000/#120b13/g' \
+        -e 's/#ffffff/#dcc9d2/g' \
+        -e 's/#8fbcbb/#b85753/g' \
+        -e 's/#00ff00/#8aa073/g' \
+        -e 's/#ff0000/#b85753/g' \
+        -e 's/#800080/#ae90c0/g' \
+        -e 's/#ff7f2a/#c08366/g' "$svg"
+    done
+
+    # Render synchronously: the upstream wrapper races make.sh against PNG output.
+    ( cd tools && python3 render-pngs.py svgs/themes/Nordzy-Emberlight.svg )
+    ( cd tools && python3 render-pngs.py svgs/themes/Nordzy-Emberlight-spinner.svg )
+    ( cd tools && bash make.sh Nordzy-Emberlight )
+
+    test -s tools/pngs/24/left_ptr.png
+    test -s tools/Nordzy-Emberlight/cursors/left_ptr
+    if find tools/Nordzy-Emberlight/cursors -type f -empty | grep -q .; then
+      echo "empty Xcursor files were generated" >&2
+      find tools/Nordzy-Emberlight/cursors -type f -empty >&2
+      exit 1
+    fi
 
     runHook postBuild
   '';
@@ -58,7 +66,7 @@ pkgs.stdenvNoCC.mkDerivation (finalAttrs: {
   installPhase = ''
     runHook preInstall
     install -d "$out/share/icons"
-    cp -a xcursors/Nordzy-Emberlight "$out/share/icons/"
+    cp -a tools/Nordzy-Emberlight "$out/share/icons/"
     runHook postInstall
   '';
 
