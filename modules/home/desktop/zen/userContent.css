@@ -1,0 +1,8 @@
+/* Keep internal pages on the Emberlight background. */
+@-moz-document url("about:newtab"), url("about:home"), url("about:privatebrowsing") {
+  :root,
+  body {
+    background: #120b13 !important;
+    color: #dcc9d2 !important;
+  }
+}

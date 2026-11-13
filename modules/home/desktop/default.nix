@@ -8,5 +8,6 @@
     ./security.nix
     ./clipboard.nix
     ./cursor.nix
+    ./zen.nix
   ];
 }

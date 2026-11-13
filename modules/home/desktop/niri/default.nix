@@ -29,7 +29,7 @@ in
         };
 
         cursor = {
-          xcursor-theme = "Nordzy-Emberlight";
+          xcursor-theme = "Bibata-Modern-Ice";
           xcursor-size = 48;
         };
 

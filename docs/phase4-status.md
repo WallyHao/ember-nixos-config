@@ -31,3 +31,12 @@
 按用户要求，默认 profile 新增 Zen 1.22.2b（Folio 同一上游固定版本），并保留 `.config/zen`。
 新软件集合和含该持久化规则的真实系统构建通过，`zen-beta --version` 输出符合预期。
 离线缓存/指纹已更新，旧 Ember 软件集合也已加入精确迁移清单；没有重跑 VM。
+
+## 外观调整（待切换验证）
+
+- 光标改为 Bibata-Modern-Ice，48px；Home Manager `pointerCursor`、GTK/X11、
+  `XCURSOR_THEME`/`XCURSOR_SIZE` 与 Niri `xcursor-*` 使用同一值。
+- Zen 1.22.2b 保留原软件 profile；在持久化 profile
+  `eryfevl7.Default Profile` 中通过 `user.js` 启用深色和 userChrome，
+  并由 `userChrome.css`/`userContent.css` 套用 Emberlight 基础色。
+- 临时 profile 已实际渲染确认 userChrome 生效；宿主尚未切换，当前会话仍使用旧光标。

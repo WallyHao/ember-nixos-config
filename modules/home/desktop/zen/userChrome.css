@@ -1,0 +1,74 @@
+/* Emberlight colours for Zen's chrome. */
+:root {
+  --zen-primary-color: #b85753 !important;
+  --zen-branding-bg: #120b13 !important;
+  --zen-branding-dark: #120b13 !important;
+  --zen-main-browser-background: #120b13 !important;
+  --zen-main-browser-background-toolbar: #120b13 !important;
+  --zen-themed-toolbar-bg: #120b13 !important;
+  --zen-themed-toolbar-bg-transparent: #120b13 !important;
+  --zen-colors-primary: #1c1119 !important;
+  --zen-colors-secondary: #301d2a !important;
+  --zen-colors-tertiary: #120b13 !important;
+  --zen-colors-border: #5a3a4a !important;
+  --zen-colors-border-contrast: #b85753 !important;
+  --zen-colors-hover-bg: #301d2a !important;
+  --zen-colors-input-bg: #1c1119 !important;
+  --toolbox-textcolor: #dcc9d2 !important;
+  --toolbar-color-scheme: dark !important;
+  --tab-selected-bgcolor: #301d2a !important;
+  --tab-selected-textcolor: #dcc9d2 !important;
+  --lwt-accent-color: #120b13 !important;
+  --lwt-text-color: #dcc9d2 !important;
+  --toolbar-bgcolor: #120b13 !important;
+  --toolbar-color: #dcc9d2 !important;
+  --lwt-toolbar-field-background-color: #1c1119 !important;
+  --lwt-toolbar-field-color: #dcc9d2 !important;
+  --lwt-toolbar-field-border-color: #5a3a4a !important;
+  --lwt-toolbarbutton-icon-fill: #dcc9d2 !important;
+  --lwt-toolbarbutton-hover-background: #301d2a !important;
+  --lwt-toolbarbutton-active-background: #5a3a4a !important;
+  --zen-border-radius: 0px !important;
+}
+
+#navigator-toolbox,
+#zen-appcontent-navbar-wrapper {
+  background-color: #120b13 !important;
+}
+
+#sidebar-box,
+#zen-sidebar {
+  background-color: #120b13 !important;
+}
+
+#urlbar-background,
+.urlbar-background,
+#searchbar {
+  background-color: #1c1119 !important;
+  border: 1px solid #5a3a4a !important;
+  border-radius: 0 !important;
+}
+
+#urlbar[focused] > #urlbar-background {
+  border-color: #b85753 !important;
+  box-shadow: 0 0 0 1px #b85753 !important;
+}
+
+.tabbrowser-tab[selected] .tab-background {
+  background-color: #301d2a !important;
+  border: 1px solid #b85753 !important;
+  border-radius: 0 !important;
+}
+
+.tabbrowser-tab:not([selected]) .tab-background {
+  border-radius: 0 !important;
+}
+
+#PersonalToolbar {
+  background-color: #120b13 !important;
+}
+
+#zen-workspaces-button,
+#zen-create-new-button {
+  background-color: #1c1119 !important;
+}
