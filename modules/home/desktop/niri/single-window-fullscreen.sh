@@ -52,8 +52,16 @@ is_maximized_to_edges() {
     >/dev/null <<<"$windows"
 }
 
+is_fullscreen() {
+  local windows="$1" id="$2" maxh="$3"
+  [ -n "$maxh" ] || return 1
+  jq -e --argjson id "$id" --argjson maxh "$maxh" \
+    '.[] | select(.id == $id and .layout.tile_size[1] >= ($maxh - 1))' \
+    >/dev/null <<<"$windows"
+}
+
 process() {
-  local windows workspaces focused_ws output maxw id count
+  local windows workspaces focused_ws output outputs maxw maxh id count
   local -a ids
   windows=$(window_json) || return
   workspaces=$(niri msg -j workspaces) || return
@@ -63,8 +71,11 @@ process() {
 
   output=$(jq -r --argjson ws "$focused_ws" \
     '.[] | select(.id == $ws) | .output // empty' <<<"$workspaces")
-  maxw=$(niri msg -j outputs |
-    jq -r --arg output "$output" '.[$output].logical.width // empty')
+  outputs=$(niri msg -j outputs) || return
+  maxw=$(jq -r --arg output "$output" \
+    '.[$output].logical.width // empty' <<<"$outputs")
+  maxh=$(jq -r --arg output "$output" \
+    '.[$output].logical.height // empty' <<<"$outputs")
 
   mapfile -t ids < <(jq -r --argjson ws "$focused_ws" \
     '.[] | select(.workspace_id == $ws and (.is_floating | not)) | .id' \
@@ -73,7 +84,9 @@ process() {
 
   if [ "$count" -eq 1 ]; then
     id=${ids[0]}
-    if ! contains "$id"; then
+    if is_fullscreen "$windows" "$id" "$maxh"; then
+      remove_id "$id"
+    elif ! contains "$id"; then
       if is_maximized_to_edges "$windows" "$id" "$maxw"; then
         add "$id"
       else
@@ -84,6 +97,10 @@ process() {
   elif [ "$count" -gt 1 ]; then
     for id in "${ids[@]}"; do
       if contains "$id"; then
+        if is_fullscreen "$windows" "$id" "$maxh"; then
+          remove_id "$id"
+          continue
+        fi
         if is_maximized_to_edges "$windows" "$id" "$maxw"; then
           toggle "$id"
         fi

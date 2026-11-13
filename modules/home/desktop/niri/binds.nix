@@ -58,9 +58,9 @@ in
     _props.repeat = false;
     show-hotkey-overlay = { };
   };
-  "${modifier}+F" = bind "Toggle half/full workspace width" {
+  "${modifier}+F" = bind "Toggle fullscreen" {
     _props.repeat = false;
-    maximize-column = { };
+    fullscreen-window = { };
   };
   "${modifier}+G" = bind "Toggle workspace centering" {
     _props.repeat = false;
