@@ -40,3 +40,13 @@
   `eryfevl7.Default Profile` 中通过 `user.js` 启用深色和 userChrome，
   并由 `userChrome.css`/`userContent.css` 套用 Emberlight 基础色。
 - 临时 profile 已实际渲染确认 userChrome 生效；宿主尚未切换，当前会话仍使用旧光标。
+
+## Niri 单窗口自动最大化
+
+- systemd user service `niri-single-window-fullscreen` 订阅 Niri 事件流，
+  当前工作区只有一个平铺窗口时调用 `maximize-window-to-edges`。
+- 出现第二个平铺窗口时恢复该窗口为 50% 列宽，使双窗口并排；关闭后再次最大化。
+- 该行为使用 Niri 的“最大化到屏幕边缘”，不等于应用级 fullscreen；应用级全屏仍由应用或
+  `Super+Shift+F` 控制。
+- 已在本机临时运行验证：单窗口为 `1920x1044`，第二窗口出现后恢复 `936x1024`，
+  关闭第二窗口后重新变为 `1920x1044`。

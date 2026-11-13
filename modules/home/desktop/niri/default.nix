@@ -11,6 +11,7 @@ in
 {
   imports = [
     ./actions.nix
+    ./single-window-fullscreen.nix
   ];
 
   config = lib.mkIf config.ember.desktop.enable {
