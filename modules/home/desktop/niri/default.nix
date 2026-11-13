@@ -30,7 +30,7 @@ in
 
         cursor = {
           xcursor-theme = "Bibata-Modern-Ice";
-          xcursor-size = 48;
+          xcursor-size = 36;
         };
 
         layout = {

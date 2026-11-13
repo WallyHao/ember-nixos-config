@@ -34,7 +34,7 @@
 
 ## 外观调整（待切换验证）
 
-- 光标改为 Bibata-Modern-Ice，48px；Home Manager `pointerCursor`、GTK/X11、
+- 光标改为 Bibata-Modern-Ice，36px；Home Manager `pointerCursor`、GTK/X11、
   `XCURSOR_THEME`/`XCURSOR_SIZE` 与 Niri `xcursor-*` 使用同一值。
 - Zen 1.22.2b 保留原软件 profile；在持久化 profile
   `eryfevl7.Default Profile` 中通过 `user.js` 启用深色和 userChrome，
