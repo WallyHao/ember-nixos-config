@@ -39,7 +39,7 @@ in
           selection-text = hex "base05";
           selection-match = hex "base0A";
           counter = hex "base04";
-          border = hex "base0A";
+          border = hex "base08";
         };
       };
     };

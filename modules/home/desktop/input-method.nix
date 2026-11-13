@@ -9,7 +9,7 @@ let
   panelSvg = pkgs.writeText "ember-input-panel.svg" ''
     <svg xmlns="http://www.w3.org/2000/svg" width="80" height="80" viewBox="0 0 80 80">
       <rect x="3" y="3" width="74" height="74" rx="12" ry="12" fill="${c.base00}"/>
-      <rect x="3" y="3" width="74" height="74" rx="12" ry="12" fill="none" stroke="${c.base0A}" stroke-width="2"/>
+      <rect x="3" y="3" width="74" height="74" rx="12" ry="12" fill="none" stroke="${c.base08}" stroke-width="2"/>
     </svg>
   '';
   panel = pkgs.runCommand "ember-input-panel.png" {
