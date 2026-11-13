@@ -1,0 +1,24 @@
+{
+  "name": "Emberlight",
+  "author": "seeds #120b13 #753843 #c43433 #fedd81",
+  "system": "base16",
+  "variant": "dark",
+  "palette": {
+    "base00": "#120B13",
+    "base01": "#1C1119",
+    "base02": "#301D2A",
+    "base03": "#5A3A4A",
+    "base04": "#8B6F80",
+    "base05": "#DCC9D2",
+    "base06": "#EADCE2",
+    "base07": "#FAF3F1",
+    "base08": "#B85753",
+    "base09": "#C08366",
+    "base0A": "#EDD5A2",
+    "base0B": "#8AA073",
+    "base0C": "#7BA29B",
+    "base0D": "#8C90C2",
+    "base0E": "#AE90C0",
+    "base0F": "#753843"
+  }
+}

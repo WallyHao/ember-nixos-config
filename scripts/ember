@@ -1,0 +1,393 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+cd "$(dirname "$0")/.."
+repo=$(pwd -P)
+
+usage() {
+  cat <<'EOF'
+usage: scripts/ember <info|check|build|proxy|profile|profile-install|migrate-folio-data|scan-selftest>
+
+  info          show target identity and storage/deployment state
+  check         path/secret scans, self-tests, flake eval, and no-build checks
+  scan-selftest prove the path and secret scanners reject controlled samples
+  build         build the system-preview toplevel (not installable)
+  proxy [status|on|off|check|import FILE] manage Mihomo
+  profile [install|list|history|rollback [N]] manage all declared user software
+  profile-install compatibility alias for profile install
+  migrate-folio-data copy private node/subscription/Wi-Fi data to mounted /mnt
+
+switch, test, boot, install, and activate are not performed by this wrapper.
+EOF
+}
+
+require_ember_user() {
+  if [ "$(id -u)" -ne 1000 ] || [ "$(id -un)" != wallyhao ] ||
+    [[ "$(< /proc/sys/kernel/hostname)" != ember && "$(< /proc/sys/kernel/hostname)" != hearth ]] || [ "$HOME" != /home/wallyhao ]; then
+    echo 'Run this command as wallyhao on Ember, without sudo.' >&2
+    return 2
+  fi
+}
+
+profile_bootstrap() {
+  require_ember_user || return
+
+  local cached profile entries
+  cached=$(< "$repo/software/bootstrap-workstation")
+  profile="$HOME/.local/state/nix/profiles/profile"
+  if [[ ! "$cached" =~ ^/nix/store/[^/]+-(ember|hearth)-workstation$ ]] || [ ! -x "$cached/bin/omp" ] || [ ! -x "$cached/bin/yazi" ]; then
+    echo 'The cached workstation is missing. Build path:./software#workstation or copy its closure from the installation environment first.' >&2
+    return 1
+  fi
+
+  if [ -e "$profile/manifest.json" ]; then
+    entries=$(nix profile list --profile "$profile" --json)
+    if grep -Fq "\"$cached\"" <<< "$entries"; then
+      echo 'The cached workstation profile is already installed.'
+      return 0
+    fi
+  fi
+
+  mkdir -p "$(dirname "$profile")"
+  nix profile install --profile "$profile" "$cached"
+  echo 'Base tools and OMP installed. Open a new Foot window to use them.'
+}
+
+proxy_command() {
+  local action=${1:-status}
+  case "$action" in
+    status | on | off | check)
+      if [ "$#" -gt 1 ]; then
+        echo "Usage: just proxy $action" >&2
+        return 2
+      fi
+      ;;
+    import)
+      if [ "$#" -ne 2 ]; then
+        echo 'Usage: just proxy import /path/to/provider.yaml' >&2
+        return 2
+      fi
+      ;;
+    help | --help | -h)
+      echo 'Usage: just proxy [status|on|off|check|import FILE]'
+      return
+      ;;
+    *) echo 'Usage: just proxy [status|on|off|check|import FILE]' >&2; return 2 ;;
+  esac
+  require_ember_user || return
+  if command -v ember-proxy >/dev/null 2>&1; then
+    ember-proxy "$action" "${@:2}"
+  elif command -v hearth-proxy >/dev/null 2>&1; then
+    # Transitional system generation. Subscription imports need the new daemon.
+    hearth-proxy "$action" "${@:2}"
+  else
+    echo 'Proxy helper missing; apply the Ember system configuration first.' >&2
+    return 1
+  fi
+}
+
+# jq expressions below intentionally contain jq variables, not shell expansions.
+# shellcheck disable=SC2016
+profile_install() {
+  require_ember_user || return
+  # A reviewed fingerprint keeps first installation offline, but an edited
+  # declaration must never silently fall back to an outdated cached bundle.
+  if [ -f "$repo/software/bootstrap-fingerprint" ] &&
+    sha256sum --check --status "$repo/software/bootstrap-fingerprint" &&
+    [ -x "$(< "$repo/software/bootstrap-workstation")/bin/jq" ]; then
+    # Once the bundle has a flake origin, continue updating it through Nix;
+    # returning the declaration to its initial content must also remove apps.
+    local cached_profile="$HOME/.local/state/nix/profiles/profile"
+    local cached_jq
+    cached_jq="$(< "$repo/software/bootstrap-workstation")/bin/jq"
+    local tracked=false cached_entries
+    if [ -e "$cached_profile/manifest.json" ]; then
+      cached_entries=$(nix profile list --profile "$cached_profile" --json) || return
+      if "$cached_jq" -e --arg cache "$(< "$repo/software/bootstrap-workstation")" '.elements | any(.[];
+        (.originalUrl != null and .attrPath == "packages.x86_64-linux.workstation")
+        or any(.storePaths[]; test("-(ember|hearth)-workstation$") and . != $cache))' \
+        <<< "$cached_entries" >/dev/null; then
+        tracked=true
+      fi
+    fi
+    if [ "$tracked" = false ]; then
+      profile_bootstrap
+      return
+    fi
+  fi
+
+  local profile flake old_flake target entries managed legacy jq
+  profile="$HOME/.local/state/nix/profiles/profile"
+  flake="path:$repo/software"
+  old_flake="path:$(dirname "$repo")/hearth-nixos-config/software"
+  # Finish downloads/builds before touching the installed profile.
+  target=$(nix build --no-link --print-out-paths --no-update-lock-file "$flake#workstation") || return
+  if [[ ! "$target" =~ ^/nix/store/[^/]+-(ember|hearth)-workstation$ ]] || [ ! -x "$target/bin/jq" ]; then
+    echo 'The software flake did not produce one valid Ember workstation.' >&2
+    return 1
+  fi
+  jq="$target/bin/jq"
+  entries='{"elements":{}}'
+  if [ -e "$profile/manifest.json" ]; then
+    entries=$(nix profile list --profile "$profile" --json) || return
+  fi
+  managed=$("$jq" -r --arg url "$flake" --arg old "$old_flake" '
+    .elements | to_entries[] |
+    select((.value.originalUrl == $url or .value.originalUrl == $old) and .value.attrPath == "packages.x86_64-linux.workstation") |
+    .key' <<< "$entries") || return
+  if [[ "$managed" == *$'\n'* ]]; then
+    echo 'Multiple managed workstation entries found; inspect just profile list before continuing.' >&2
+    return 1
+  fi
+  if [ -n "$managed" ]; then
+    if "$jq" -e --arg name "$managed" --arg path "$target" \
+      '.elements[$name].storePaths | index($path) != null' <<< "$entries" >/dev/null; then
+      echo 'Declared software is already installed.'
+    else
+      nix profile upgrade --profile "$profile" --no-update-lock-file "$managed" || return
+    fi
+  else
+    mkdir -p "$(dirname "$profile")"
+    # Priority 4 permits migration alongside the old priority-5 cached bundle.
+    # Remove that old entry only after the new installation succeeds.
+    local priority
+    priority=$("$jq" -r '[.elements[] | select(any(.storePaths[]; test("-(ember|hearth)-workstation$"))) | (.priority // 5)] | if length == 0 then 4 else min - 1 end' <<< "$entries") || return
+    nix profile install --profile "$profile" --priority "$priority" --no-update-lock-file "$flake#workstation" || return
+  fi
+  legacy=$("$jq" -r --arg path "$(< "$repo/software/bootstrap-workstation")" --argjson old_paths "$(< "$repo/software/legacy-workstations.json")" '
+    .elements | to_entries[] |
+    select(.value.originalUrl == null and any(.value.storePaths[]; . == $path or (. as $p | $old_paths | index($p) != null))) |
+    .key' <<< "$entries") || return
+  if [ -n "$legacy" ]; then
+    local -a old_entries
+    mapfile -t old_entries <<< "$legacy"
+    nix profile remove --profile "$profile" "${old_entries[@]}" || return
+  fi
+  echo 'Declared user software installed. Open a new terminal or launcher to use it.'
+}
+
+profile_command() {
+  local action=${1:-install}
+  case "$action" in
+    help | --help | -h)
+      echo 'Usage: just profile [install|list|history|rollback [GENERATION]]'
+      return
+      ;;
+    install | list | history)
+      if [ "$#" -gt 1 ]; then
+        echo "Usage: just profile $action" >&2
+        return 2
+      fi
+      ;;
+    rollback)
+      if [ "$#" -gt 2 ] || { [ "$#" -eq 2 ] && [[ ! "$2" =~ ^[0-9]+$ ]]; }; then
+        echo 'Usage: just profile rollback [GENERATION]' >&2
+        return 2
+      fi
+      ;;
+    *) echo 'Usage: just profile [install|list|history|rollback [GENERATION]]' >&2; return 2 ;;
+  esac
+  require_ember_user || return
+  local profile="$HOME/.local/state/nix/profiles/profile"
+  case "$action" in
+    install) profile_install ;;
+    list | history) nix profile "$action" --profile "$profile" ;;
+    rollback)
+      if [ "$#" -eq 2 ]; then
+        nix profile rollback --profile "$profile" --to "$2"
+      else
+        nix profile rollback --profile "$profile"
+      fi
+      ;;
+  esac
+}
+
+refuse() {
+  echo "refused: this wrapper does not activate, install, or write firmware." >&2
+  echo "Use 'scripts/ember build' for the system-preview only." >&2
+  exit 2
+}
+
+scan_grep() {
+  local root=$1
+  local pattern=$2
+  local output=$3
+  local description=$4
+  local rc
+  local -a roots
+
+  if [ "$root" = "$repo" ]; then
+    roots=(flake.nix flake lib hosts suites inventory users software scripts tests modules)
+  else
+    roots=("$root")
+  fi
+
+  set +e
+  grep -RInE \
+    --exclude-dir=.git \
+    --exclude-dir=fixtures \
+    --exclude=ember \
+    --exclude='result*' \
+    -- "$pattern" "${roots[@]}" \
+    >"$output" 2>&1
+  rc=$?
+  set -e
+
+  # Only the reviewed host binding may name a physical disk. Shared modules
+  # and every other host line remain subject to the original scan.
+  if [ "$rc" -eq 0 ] && [ "$root" = "$repo" ] && [ "$description" = "host/disk reference" ]; then
+    set +e
+    grep -vE '^hosts/laptop/storage-spec\.nix:[0-9]+:  targetDisk = "/dev/disk/by-id/nvme-eui\.[0-9a-f]{16}";$' "$output" > "$output.filtered"
+    rc=$?
+    set -e
+    mv "$output.filtered" "$output"
+  fi
+
+  case "$rc" in
+    0)
+      echo "forbidden $description:" >&2
+      cat "$output" >&2
+      return 1
+      ;;
+    1)
+      return 0
+      ;;
+    *)
+      echo "scan failed while looking for $description:" >&2
+      cat "$output" >&2
+      return 2
+      ;;
+  esac
+}
+
+static_scan() {
+  local root=${1:-$repo}
+  local forbidden='(/home/folio|/dev/nvme[0-9]|/dev/sd[a-z]|/dev/disk/by-id/)'
+  local status=0
+
+  scan_grep "$root" "$forbidden" /tmp/ember-static-scan.txt "host/disk reference" || status=$?
+  scan_grep "$root" 'UUID=[0-9a-fA-F-]{8,}' /tmp/ember-uuid-scan.txt "UUID literal" || status=$?
+  return "$status"
+}
+
+secret_scan() {
+  local root=${1:-$repo}
+  local rc
+
+  set +e
+  gitleaks dir --no-banner --redact --config "$repo/.gitleaks.toml" "$root"
+  rc=$?
+  set -e
+
+  case "$rc" in
+    0)
+      return 0
+      ;;
+    1)
+      echo "secret scan found leaks" >&2
+      return 1
+      ;;
+    *)
+      echo "secret scan failed to execute (exit $rc)" >&2
+      return 2
+      ;;
+  esac
+}
+
+scan_selftest() {
+  local tmp
+  selftest_tmp=$(mktemp -d)
+  trap 'rm -rf "$selftest_tmp"' EXIT
+  tmp=$selftest_tmp
+
+  mkdir -p "$tmp/empty" "$tmp/path/modules" "$tmp/secret"
+
+  if ! static_scan "$tmp/empty"; then
+    echo "self-test: empty path scan unexpectedly failed" >&2
+    return 1
+  fi
+  if ! secret_scan "$tmp/empty"; then
+    echo "self-test: empty secret scan unexpectedly failed" >&2
+    return 1
+  fi
+
+  local fake_home
+  fake_home="/home/""folio/example"
+  printf 'not a real path: %s\n' "$fake_home" >"$tmp/path/modules/bad.nix"
+  if static_scan "$tmp/path"; then
+    echo "self-test: path scanner did not reject modules/bad.nix" >&2
+    return 1
+  fi
+  rm "$tmp/path/modules/bad.nix"
+  printf 'targetDisk = "%s%s";\n' '/dev/disk/' 'by-id/nvme-eui.0000000000000000' >"$tmp/path/modules/bad-disk.nix"
+  if static_scan "$tmp/path"; then
+    echo "self-test: path scanner allowed a physical disk in a shared module" >&2
+    return 1
+  fi
+
+  # Build the sample at runtime so the scanner script itself does not contain
+  # a matching credential literal.
+  printf 'aws_access_key_id = "AKIA%s"\n' 'Z7Q2X4W6R8T1Y3U5' >"$tmp/secret/leak.txt"
+  if secret_scan "$tmp/secret"; then
+    echo "self-test: secret scanner did not reject a fake AWS key" >&2
+    return 1
+  fi
+
+  echo "scanner self-tests passed"
+}
+
+main() {
+  case "${1:-info}" in
+    migrate-folio-data)
+      local tool
+      tool=$(nix build --no-link --print-out-paths --no-update-lock-file path:.#migration-tool) || return
+      exec sudo "$tool/bin/ember-migrate-folio-data" --target-root /mnt
+      ;;
+    info)
+      printf 'target: ember\n'
+      printf 'user: wallyhao (uid 1000, /home/wallyhao)\n'
+      nix eval --json --no-update-lock-file path:.#lib.ember.deployment | python3 -m json.tool
+      printf 'system-preview: nix build path:.#packages.x86_64-linux.system-preview\n'
+      ;;
+    check)
+      static_scan
+      secret_scan
+      scan_selftest
+      # replaceDependencies generates a helper derivation lazily; force the
+      # VM check derivations to be instantiated before the no-build flake check.
+      for check in vm-accounts vm-persistence vm-offline-boot vm-offline-desktop vm-offline-link vm-desktop vm-user-environment vm-connectivity; do
+        nix eval --raw --no-update-lock-file "path:.#checks.x86_64-linux.${check}.drvPath" >/dev/null
+      done
+      nix flake check --no-build --no-update-lock-file path:.
+      ;;
+    scan-selftest)
+      scan_selftest
+      ;;
+    build)
+      echo "building system-preview; this is not installable and does not touch any disk"
+      nix build --no-link --print-out-paths --no-update-lock-file path:.#packages.x86_64-linux.system-preview
+      ;;
+    proxy)
+      shift
+      proxy_command "$@"
+      ;;
+    profile)
+      shift
+      profile_command "$@"
+      ;;
+    profile-install)
+      profile_command install
+      ;;
+    switch | test | boot | install | activate)
+      refuse
+      ;;
+    *)
+      usage >&2
+      exit 2
+      ;;
+  esac
+}
+
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+  main "$@"
+fi

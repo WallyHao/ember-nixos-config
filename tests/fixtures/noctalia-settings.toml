@@ -1,0 +1,29 @@
+# Phase 3 VM fixture: stale Noctalia runtime overrides plus user-owned state.
+# Used only by tests/vm/user-environment.nix.
+[wallpaper]
+enabled = false
+fill_color = "#ff00ff"
+
+[wallpaper.default]
+path = "/home/wallyhao/Pictures/old.png"
+
+[theme]
+mode = "light"
+source = "builtin"
+builtin = "Nord"
+
+[plugins]
+auto_update = "all"
+enabled = ["noctalia/screen_recorder"]
+
+[[plugins.source]]
+name = "official"
+kind = "git"
+location = "https://github.com/noctalia-dev/official-plugins"
+enabled = true
+
+[[wallpaper.favorite]]
+path = "/home/wallyhao/Pictures/fav.png"
+
+[bar.main]
+position = "bottom"

@@ -1,0 +1,59 @@
+# Test-only real login probe. No command is sent until authentication has
+# produced a shell prompt; rejection requires an explicit login error.
+set timeout 20
+log_user 0
+proc fail {message} {
+    puts stderr "FAIL: $message"
+    exit 1
+}
+if {$argc != 4} {
+    fail "usage: login.exp password-file accept|reject program timeout"
+}
+lassign $argv password_file outcome program timeout
+if {$outcome ni {accept reject}} {
+    fail "invalid expected authentication outcome"
+}
+set channel [open $password_file r]
+set password [string trimright [read $channel] "\n"]
+close $channel
+spawn $program wallyhao
+expect {
+    "Password:" {}
+    timeout { fail "password prompt timeout" }
+    eof { fail "login exited before password prompt" }
+}
+send -- "$password\r"
+if {$outcome eq "reject"} {
+    # Negative case: wait for the explicit login rejection. Do not inject a
+    # command that could turn a retry prompt into a second password line.
+    expect {
+        -re {[Ll]ogin incorrect} {
+            close
+            catch {wait}
+            exit 0
+        }
+        timeout { fail "neither authenticated shell nor explicit rejection observed" }
+        eof { fail "login exited without an authentication result" }
+    }
+}
+# Positive case: wait for the test-only fixed prompt, then send a marker.
+expect {
+    -re {[$%#] $} {}
+    -re {[Ll]ogin incorrect} { fail "password was rejected" }
+    timeout { fail "authenticated identity marker timeout" }
+    eof { fail "login exited before authenticated identity marker" }
+}
+send -- {printf 'HEARTH_%s:%s\n' LOGIN "$(id -un)"}
+send -- "\r"
+expect {
+    -re {[Ll]ogin incorrect} { fail "password was rejected" }
+    -re {(?n)^HEARTH_LOGIN:wallyhao\r?$} {}
+    timeout { fail "authenticated identity marker timeout" }
+    eof { fail "login exited before authenticated identity marker" }
+}
+send -- "exit\r"
+expect {
+    eof {}
+    timeout { fail "authenticated shell did not exit" }
+}
+exit 0
