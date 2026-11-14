@@ -1,5 +1,8 @@
 # Hearth 首次启动
 
+> 历史文档：记录 Hearth phase-1 首次启动。当前 Ember 的操作说明见
+> [operations.md](operations.md)。
+
 首次实机启动已发生，Wi-Fi 初始化问题的修正待应用，见 wifi-first-boot-fix.md。选择内置 NVMe 的 Linux Boot Manager，从密码 greeter 登录 wallyhao；首次登录后用 passwd 修改初始密码。
 
 ## 先安装已缓存的软件 profile

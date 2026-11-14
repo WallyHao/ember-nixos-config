@@ -1,5 +1,9 @@
 # Performance evidence
 
+> Historical phase-1/2 evidence for the Hearth/Noctalia desktop. It is not
+> current Ember status; current desktop and operations are documented in
+> [architecture.md](architecture.md) and [operations.md](operations.md).
+
 The user goals are lower idle power, faster boot, and lower initial memory.
 Configuration values are implementation evidence, not measured results.
 

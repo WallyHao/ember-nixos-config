@@ -13,5 +13,6 @@ user session; no module reads the host account as the target account.
 - terminal/editor/tools: Foot, P10k/eza/fzf, Nixvim, Yazi/OMP integration.
 - shared/profile-session: native profile PATH and desktop-file discovery.
 
-Desktop essentials are available before user profile bootstrap. Noctalia has no
-live import or unit; retaining its old state directory is intentional rollback.
+Desktop essentials are available before user profile bootstrap. Noctalia
+modules and state-migration code have been removed; retaining its old state
+directory is intentional rollback data.

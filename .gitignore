@@ -3,3 +3,5 @@ result-*
 .direnv/
 *.qcow2
 nixos.qcow2
+__pycache__/
+*.pyc

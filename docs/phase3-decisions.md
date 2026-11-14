@@ -1,5 +1,8 @@
 # Phase 3 decisions
 
+> 历史记录：本阶段的 Noctalia 运行时模块和 `noctalia-state.py` 已在
+> 2026-11-14 的结构清理中删除；下文保留原始路径作为当时证据。
+
 日期：2026-11-10。记录第三阶段每个关键 option 的锁定来源与验证方式。实际运行结果见
 [phase3-report.md](phase3-report.md)，未完成项见 [phase3-status.md](phase3-status.md)。
 
