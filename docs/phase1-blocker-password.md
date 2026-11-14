@@ -8,7 +8,7 @@
 
 锁定的 userborn 将 `/etc/shadow` 链接到 `/var/lib/nixos/shadow`。原版 Linux-PAM 的 `unix_update_shadow` 在 `/etc` 创建临时文件，再 `rename` 覆盖 `/etc/shadow`，因此替换了链接，改密只留在 tmpfs 中。重启后旧的持久文件重新生效。
 
-执行 Agent 已加入 `patches/pam-unix-password-symlink.patch`。补丁先解析链接，在真实目标目录创建临时文件，再原子替换真实目标；保留原有权限、属主和文件 fsync 流程。`accounts.nix` 通过 `system.replaceDependencies.replacements` 把补丁版 PAM 放入最终系统闭包。**该补丁继续保留，本次没有更换账户后端或放宽密码要求。**
+执行 Agent 已加入 `modules/system/patches/pam-unix-password-symlink.patch`。补丁先解析链接，在真实目标目录创建临时文件，再原子替换真实目标；保留原有权限、属主和文件 fsync 流程。`accounts.nix` 通过 `system.replaceDependencies.replacements` 把补丁版 PAM 放入最终系统闭包。**该补丁继续保留，本次没有更换账户后端或放宽密码要求。**
 
 ### 补丁后的“旧密码又成功”是测试误判
 

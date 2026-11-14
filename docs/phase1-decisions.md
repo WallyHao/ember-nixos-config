@@ -54,7 +54,7 @@ Disko source: commit `cedd626e11b635470fa6f9fdb8ad79b0075dd7f9`.
 
 The locked upstream gap is real: stock Linux-PAM 1.7.2 atomically replaces
 `/etc/shadow`, removing userborn's symlink on the tmpfs root. The local patch
-`patches/pam-unix-password-symlink.patch` resolves the target and performs the
+`modules/system/patches/pam-unix-password-symlink.patch` resolves the target and performs the
 temporary write/rename in the persistent directory. Existing file owner/mode
 and file fsync are retained. This is not a shutdown copy or an individual-file
 bind mount.

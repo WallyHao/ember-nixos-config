@@ -18,7 +18,7 @@ in
   # PAM rebuild while still making pam_unix resolve the persistent shadow
   # symlink before its atomic rename.
   security.pam.package = pkgs.pam.overrideAttrs (old: {
-    patches = (old.patches or [ ]) ++ [ ../../patches/pam-unix-password-symlink.patch ];
+    patches = (old.patches or [ ]) ++ [ ./patches/pam-unix-password-symlink.patch ];
   });
 
   programs.zsh.enable = true;
