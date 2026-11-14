@@ -42,10 +42,11 @@ just proxy help
 ## 本轮验证与边界
 
 - Just 实际参数转发（包括带空格路径）、ShellCheck、Bash/Nix 格式通过。
-- 临时目录及模拟 Nix/代理后端检查：错误参数拒绝、安装失败保留旧条目、成功后清理
-  旧缓存、其他软件条目保留、重复执行不新增安装、清单恢复原样仍正确升级、
-  构建失败不回退旧缓存、初始声明离线缓存路径均通过。
-- software#workstation 实际构建仍得到已复制的 bootstrap-workstation store path。
+- 临时目录及模拟 Nix/代理后端检查：错误参数拒绝、安装失败保留旧条目、成功清理
+  旧 bundle、其他软件条目保留、重复执行不新增安装、清单恢复原样仍正确同步、
+  构建失败不修改 profile、逐包离线缓存路径均通过。
+- `just software-build` 实际逐个构建 `software/packages.nix` 声明的包；
+  `software/bootstrap-packages` 记录与当前构建一致的逐包 store path。
 - 未在 Folio 执行真实 profile 安装或改动代理服务；未运行 VM。VM fixture 已补齐
-  新缓存入口需要的软件源文件，但没有声称 VM 复验通过。
+  新逐包入口需要的软件源文件，但没有声称 VM 复验通过。
 - 这是仓库命令更新，源码同步到 Ember 后即可使用，不需要为命令入口重建系统。

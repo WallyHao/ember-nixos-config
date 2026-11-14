@@ -1,5 +1,5 @@
 {
-  description = "Ember base command-line user profile";
+  description = "Ember user profile package set";
 
   inputs.nixpkgs.url = "https://github.com/NixOS/nixpkgs/archive/f4a03c008967841f2a0b3cb7c436fc6fc31671f6.tar.gz";
 

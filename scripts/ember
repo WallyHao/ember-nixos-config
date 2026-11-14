@@ -6,12 +6,13 @@ repo=$(pwd -P)
 
 usage() {
   cat <<'EOF'
-usage: scripts/ember <info|check|build|proxy|profile|profile-install|migrate-folio-data|scan-selftest>
+usage: scripts/ember <info|check|build|software-build|proxy|profile|profile-install|migrate-folio-data|scan-selftest>
 
   info          show target identity and storage/deployment state
   check         path/secret scans, self-tests, flake eval, and no-build checks
   scan-selftest prove the path and secret scanners reject controlled samples
   build         build the system-preview toplevel (not installable)
+  software-build build every declared user-profile package
   proxy [status|on|off|check|import FILE] manage Mihomo
   profile [install|list|history|rollback [N]] manage all declared user software
   profile-install compatibility alias for profile install
@@ -29,28 +30,213 @@ require_ember_user() {
   fi
 }
 
-profile_bootstrap() {
-  require_ember_user || return
+profile_manifest() {
+  local profile=$1
+  if [ -e "$profile/manifest.json" ]; then
+    nix profile list --profile "$profile" --json
+  else
+    printf '{"elements":{}}\n'
+  fi
+}
 
-  local cached profile entries
-  cached=$(< "$repo/software/bootstrap-workstation")
-  profile="$HOME/.local/state/nix/profiles/profile"
-  if [[ ! "$cached" =~ ^/nix/store/[^/]+-(ember|hearth)-workstation$ ]] || [ ! -x "$cached/bin/omp" ] || [ ! -x "$cached/bin/yazi" ]; then
-    echo 'The cached workstation is missing. Build path:./software#workstation or copy its closure from the installation environment first.' >&2
+profile_fast_path() {
+  local profile="$HOME/.local/state/nix/profiles/profile"
+  local manifest="$profile/manifest.json"
+  local jqbin="$profile/bin/jq"
+  local flake="path:$repo/software"
+  local old_flake
+  old_flake="path:$(dirname "$repo")/hearth-nixos-config/software"
+  local expected_json legacy
+
+  [ -x "$jqbin" ] && [ -e "$manifest" ] && [ -f "$repo/software/bootstrap-packages" ] || return 1
+  sha256sum --check --status "$repo/software/bootstrap-fingerprint" || return 1
+
+  expected_json=$(
+    while IFS=$' \t' read -r name paths extra; do
+      [ -z "${name:-}" ] && continue
+      case "$name" in \#*) continue ;; esac
+      [ -n "${paths:-}" ] && [ -z "${extra:-}" ] || return 1
+      printf '%s\t%s\n' "$name" "$paths"
+    done < "$repo/software/bootstrap-packages" |
+      "$jqbin" -Rn '[inputs | split("\t") | {name: .[0], paths: (.[1] | split(","))}]'
+  ) || return 1
+
+  legacy=$(cat "$repo/software/legacy-workstations.json") || return 1
+  # shellcheck disable=SC2016
+  "$jqbin" -e \
+    --arg flake "$flake" \
+    --arg old "$old_flake" \
+    --argjson expected "$expected_json" \
+    --argjson legacy "$legacy" '
+      def current:
+        (.originalUrl == $flake)
+        and ((.attrPath // "") | startswith("packages.x86_64-linux."));
+      def legacy_entry:
+        ((.attrPath // "") == "packages.x86_64-linux.workstation")
+        or ((.storePaths // []) | any(.[]; test("-(ember|hearth)-workstation$")))
+        or ((.storePaths // []) | any(. as $p | $legacy | index($p) != null));
+      .elements as $e
+      | ($expected | all(. as $x |
+          ($e[$x.name] != null)
+          and ($e[$x.name] | current)
+          and ((($e[$x.name].storePaths // []) | sort) == ($x.paths | sort))
+        ))
+        and ([$e | to_entries[] | select(.value | current) | .key]
+          | all(. as $key | $expected | map(.name) | index($key) != null))
+        and ([$e | to_entries[] | select(.value | legacy_entry)] | length == 0)
+    ' "$manifest" >/dev/null
+}
+
+profile_reconcile() {
+  local profile="$HOME/.local/state/nix/profiles/profile"
+  local flake="path:$repo/software"
+  local old_flake
+  old_flake="path:$(dirname "$repo")/hearth-nixos-config/software"
+  local desired_raw entries temp target_jq
+  local name key _original attr paths priority kind legacy_flag
+  local -a desired_names missing_names changed_keys extra_keys legacy_keys
+  local -A desired_lookup target_paths managed_key
+  local -i legacy_priority=999
+  local conflict=0
+  missing_names=()
+  changed_keys=()
+  extra_keys=()
+  legacy_keys=()
+
+  # Nix path flakes can resolve to the enclosing immutable store path when the
+  # command starts inside a copied store fixture. Use the user's home for all
+  # evaluation/build/profile operations; $repo remains absolute.
+  cd "$HOME"
+
+  desired_raw=$(nix eval --raw --no-update-lock-file "$flake#packages.x86_64-linux" \
+    --apply 'packages: builtins.concatStringsSep "\n" (builtins.attrNames packages)') || return
+  mapfile -t desired_names <<<"$desired_raw"
+  if [ "${#desired_names[@]}" -eq 0 ] || [ -z "${desired_names[0]}" ]; then
+    echo 'The software flake does not declare any packages.' >&2
+    return 1
+  fi
+  for name in "${desired_names[@]}"; do
+    desired_lookup[$name]=1
+  done
+
+  # Build the entire declaration before touching the profile. This also
+  # provides the expected store paths for an idempotent reconciliation.
+  for name in "${desired_names[@]}"; do
+    paths=$(nix build --no-link --print-out-paths --no-update-lock-file "$flake#$name" | sort | paste -sd, -) || return
+    if [ -z "$paths" ]; then
+      echo "The software flake produced no output for $name." >&2
+      return 1
+    fi
+    target_paths[$name]=$paths
+    if [ "$name" = jq ]; then
+      local -a jq_outputs
+      IFS=',' read -r -a jq_outputs <<<"$paths"
+      for output in "${jq_outputs[@]}"; do
+        if [ -x "$output/bin/jq" ]; then
+          target_jq="$output/bin/jq"
+        fi
+      done
+    fi
+  done
+  if [ -z "$target_jq" ] || [ ! -x "$target_jq" ]; then
+    echo 'The software flake did not produce a usable jq.' >&2
     return 1
   fi
 
-  if [ -e "$profile/manifest.json" ]; then
-    entries=$(nix profile list --profile "$profile" --json)
-    if grep -Fq "\"$cached\"" <<< "$entries"; then
-      echo 'The cached workstation profile is already installed.'
-      return 0
-    fi
+  entries=$(profile_manifest "$profile") || return
+  temp=$(mktemp) || return
+  # shellcheck disable=SC2016
+  if ! printf '%s\n' "$entries" | "$target_jq" -r \
+    --arg flake "$flake" \
+    --arg old "$old_flake" \
+    --argjson legacy "$(cat "$repo/software/legacy-workstations.json")" '
+      .elements | to_entries[] |
+      [
+        .key,
+        (.value.originalUrl // "-"),
+        (.value.attrPath // "-"),
+        ((.value.storePaths // []) | sort | join(",")),
+        ((.value.priority // 5) | tostring),
+        (if ((.value.originalUrl == $flake or .value.originalUrl == $old)
+             and ((.value.attrPath // "") | startswith("packages.x86_64-linux.")))
+         then "managed" else "-" end),
+        (if (((.value.attrPath // "") == "packages.x86_64-linux.workstation")
+             or ((.value.storePaths // []) | any(.[]; test("-(ember|hearth)-workstation$")))
+             or ((.value.storePaths // []) | any(. as $p | $legacy | index($p) != null)))
+         then "legacy" else "-" end)
+      ] | @tsv
+    ' >"$temp"; then
+    rm -f "$temp"
+    return 1
   fi
 
-  mkdir -p "$(dirname "$profile")"
-  nix profile install --profile "$profile" "$cached"
-  echo 'Base tools and OMP installed. Open a new Foot window to use them.'
+  while IFS=$'\t' read -r key _original attr paths priority kind legacy_flag; do
+    [ -n "$key" ] || continue
+    if [ "$legacy_flag" = legacy ]; then
+      legacy_keys+=("$key")
+      if [ "$priority" -lt "$legacy_priority" ]; then
+        legacy_priority=$priority
+      fi
+    elif [ "$kind" = managed ]; then
+      name=${attr#packages.x86_64-linux.}
+      if [ -n "${managed_key[$name]:-}" ]; then
+        echo "Multiple managed profile entries found for $name; inspect just profile list." >&2
+        conflict=1
+      elif [ -n "${desired_lookup[$name]:-}" ]; then
+        managed_key[$name]=$key
+        if [ "$paths" != "${target_paths[$name]}" ]; then
+          changed_keys+=("$key")
+        fi
+      else
+        extra_keys+=("$key")
+      fi
+    elif [ -n "${desired_lookup[$key]:-}" ]; then
+      echo "Profile entry '$key' is not managed by Ember; refusing to replace it." >&2
+      conflict=1
+    fi
+  done <"$temp"
+  rm -f "$temp"
+
+  if [ "$conflict" -ne 0 ]; then
+    return 1
+  fi
+
+  for name in "${desired_names[@]}"; do
+    if [ -z "${managed_key[$name]:-}" ]; then
+      missing_names+=("$name")
+    fi
+  done
+
+  if [ "${#missing_names[@]}" -eq 0 ] && [ "${#changed_keys[@]}" -eq 0 ] &&
+    [ "${#extra_keys[@]}" -eq 0 ] && [ "${#legacy_keys[@]}" -eq 0 ]; then
+    echo 'Declared software already installed.'
+    return 0
+  fi
+
+  if [ "${#missing_names[@]}" -gt 0 ]; then
+    local -a add_args=(profile add --profile "$profile" --no-update-lock-file)
+    mkdir -p "$(dirname "$profile")"
+    # Install during an old bundle migration at a higher precedence than the
+    # bundle, then remove the bundle only after all new entries succeeded.
+    if [ "$legacy_priority" -lt 999 ]; then
+      add_args+=(--priority "$((legacy_priority - 1))")
+    fi
+    for name in "${missing_names[@]}"; do
+      add_args+=("$flake#$name")
+    done
+    nix "${add_args[@]}" || return
+  fi
+
+  if [ "${#changed_keys[@]}" -gt 0 ]; then
+    nix profile upgrade --profile "$profile" --no-update-lock-file "${changed_keys[@]}" || return
+  fi
+
+  if [ "${#extra_keys[@]}" -gt 0 ] || [ "${#legacy_keys[@]}" -gt 0 ]; then
+    local -a remove_keys=("${extra_keys[@]}" "${legacy_keys[@]}")
+    nix profile remove --profile "$profile" "${remove_keys[@]}" || return
+  fi
+
+  echo 'Declared user software installed. Open a new terminal or launcher to use it.'
 }
 
 proxy_command() {
@@ -86,84 +272,22 @@ proxy_command() {
   fi
 }
 
-# jq expressions below intentionally contain jq variables, not shell expansions.
-# shellcheck disable=SC2016
 profile_install() {
   require_ember_user || return
-  # A reviewed fingerprint keeps first installation offline, but an edited
-  # declaration must never silently fall back to an outdated cached bundle.
-  if [ -f "$repo/software/bootstrap-fingerprint" ] &&
-    sha256sum --check --status "$repo/software/bootstrap-fingerprint" &&
-    [ -x "$(< "$repo/software/bootstrap-workstation")/bin/jq" ]; then
-    # Once the bundle has a flake origin, continue updating it through Nix;
-    # returning the declaration to its initial content must also remove apps.
-    local cached_profile="$HOME/.local/state/nix/profiles/profile"
-    local cached_jq
-    cached_jq="$(< "$repo/software/bootstrap-workstation")/bin/jq"
-    local tracked=false cached_entries
-    if [ -e "$cached_profile/manifest.json" ]; then
-      cached_entries=$(nix profile list --profile "$cached_profile" --json) || return
-      if "$cached_jq" -e --arg cache "$(< "$repo/software/bootstrap-workstation")" '.elements | any(.[];
-        (.originalUrl != null and .attrPath == "packages.x86_64-linux.workstation")
-        or any(.storePaths[]; test("-(ember|hearth)-workstation$") and . != $cache))' \
-        <<< "$cached_entries" >/dev/null; then
-        tracked=true
-      fi
-    fi
-    if [ "$tracked" = false ]; then
-      profile_bootstrap
-      return
-    fi
+  if profile_fast_path; then
+    echo 'Declared software already installed.'
+    return 0
   fi
+  profile_reconcile
+}
 
-  local profile flake old_flake target entries managed legacy jq
-  profile="$HOME/.local/state/nix/profiles/profile"
-  flake="path:$repo/software"
-  old_flake="path:$(dirname "$repo")/hearth-nixos-config/software"
-  # Finish downloads/builds before touching the installed profile.
-  target=$(nix build --no-link --print-out-paths --no-update-lock-file "$flake#workstation") || return
-  if [[ ! "$target" =~ ^/nix/store/[^/]+-(ember|hearth)-workstation$ ]] || [ ! -x "$target/bin/jq" ]; then
-    echo 'The software flake did not produce one valid Ember workstation.' >&2
-    return 1
-  fi
-  jq="$target/bin/jq"
-  entries='{"elements":{}}'
-  if [ -e "$profile/manifest.json" ]; then
-    entries=$(nix profile list --profile "$profile" --json) || return
-  fi
-  managed=$("$jq" -r --arg url "$flake" --arg old "$old_flake" '
-    .elements | to_entries[] |
-    select((.value.originalUrl == $url or .value.originalUrl == $old) and .value.attrPath == "packages.x86_64-linux.workstation") |
-    .key' <<< "$entries") || return
-  if [[ "$managed" == *$'\n'* ]]; then
-    echo 'Multiple managed workstation entries found; inspect just profile list before continuing.' >&2
-    return 1
-  fi
-  if [ -n "$managed" ]; then
-    if "$jq" -e --arg name "$managed" --arg path "$target" \
-      '.elements[$name].storePaths | index($path) != null' <<< "$entries" >/dev/null; then
-      echo 'Declared software is already installed.'
-    else
-      nix profile upgrade --profile "$profile" --no-update-lock-file "$managed" || return
-    fi
-  else
-    mkdir -p "$(dirname "$profile")"
-    # Priority 4 permits migration alongside the old priority-5 cached bundle.
-    # Remove that old entry only after the new installation succeeds.
-    local priority
-    priority=$("$jq" -r '[.elements[] | select(any(.storePaths[]; test("-(ember|hearth)-workstation$"))) | (.priority // 5)] | if length == 0 then 4 else min - 1 end' <<< "$entries") || return
-    nix profile install --profile "$profile" --priority "$priority" --no-update-lock-file "$flake#workstation" || return
-  fi
-  legacy=$("$jq" -r --arg path "$(< "$repo/software/bootstrap-workstation")" --argjson old_paths "$(< "$repo/software/legacy-workstations.json")" '
-    .elements | to_entries[] |
-    select(.value.originalUrl == null and any(.value.storePaths[]; . == $path or (. as $p | $old_paths | index($p) != null))) |
-    .key' <<< "$entries") || return
-  if [ -n "$legacy" ]; then
-    local -a old_entries
-    mapfile -t old_entries <<< "$legacy"
-    nix profile remove --profile "$profile" "${old_entries[@]}" || return
-  fi
-  echo 'Declared user software installed. Open a new terminal or launcher to use it.'
+software_build() {
+  local names name
+  names=$(nix eval --raw --no-update-lock-file "path:./software#packages.x86_64-linux" \
+    --apply 'packages: builtins.concatStringsSep "\n" (builtins.attrNames packages)') || return
+  for name in $names; do
+    nix build --no-link --print-out-paths --no-update-lock-file "path:./software#${name}" || return
+  done
 }
 
 profile_command() {
@@ -366,6 +490,9 @@ main() {
     build)
       echo "building system-preview; this is not installable and does not touch any disk"
       nix build --no-link --print-out-paths --no-update-lock-file path:.#packages.x86_64-linux.system-preview
+      ;;
+    software-build)
+      software_build
       ;;
     proxy)
       shift

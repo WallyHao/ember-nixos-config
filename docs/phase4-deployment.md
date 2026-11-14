@@ -55,8 +55,9 @@ cp -a /home/folio/Workspace/NixOS-CN-telegram/ember-nixos-config/. /mnt/persist/
 
 ```sh
 mountpoint -q /mnt && mountpoint -q /mnt/boot && mountpoint -q /mnt/nix && mountpoint -q /mnt/persist &&
-  sudo nixos-install --root /mnt --system /nix/store/43dcm9956whxg9gb1a5s19xfi4m06kbb-nixos-system-ember-26.11.20261107.dirty --no-root-passwd --no-channel-copy
-sudo nix copy --no-check-sigs --to 'local?root=/mnt' /nix/store/w6asvpz4dw32i6pifjp6y7gwf40aj4c7-ember-workstation
+  sudo nixos-install --root /mnt --system /nix/store/9s57sd9hqw505xghyvq6hdq8gf21j5bq-nixos-system-ember-26.11.20261107.dirty --no-root-passwd --no-channel-copy
+mapfile -t software_paths < <(just software-build)
+sudo nix copy --no-check-sigs --to 'local?root=/mnt' "${software_paths[@]}"
 ```
 
 `--no-check-sigs` 仅用于复制本机已构建的软件集合，不修改全局信任设置。

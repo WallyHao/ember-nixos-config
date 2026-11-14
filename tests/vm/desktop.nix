@@ -4,7 +4,7 @@
   inventory,
 }:
 let
-  software = (import ../../software/packages.nix { inherit pkgs; }).workstation;
+  softwarePackages = builtins.attrValues (import ../../software/packages.nix { inherit pkgs; });
   profileHelper = pkgs.runCommand "ember-desktop-profile-fixture" { } ''
     mkdir -p $out/scripts
     cp ${../../scripts/ember} $out/scripts/ember
@@ -72,6 +72,10 @@ let
         as_user("cd ${profileHelper}; just profile install")
         t.assertEqual(generation, as_user("readlink /home/wallyhao/.local/state/nix/profiles/profile"))
         as_user("/home/wallyhao/.local/state/nix/profiles/profile/bin/omp --version")
+        manifest = as_user("nix profile list --profile /home/wallyhao/.local/state/nix/profiles/profile --json")
+        t.assertNotIn('"workstation"', manifest)
+        for package in ["gh", "git", "jq", "omp", "zen"]:
+            t.assertIn('"{}"'.format(package), manifest)
 
     with subtest("Foot input, launcher and notification delivery"):
         machine.send_key("meta_l-ret")
@@ -186,8 +190,7 @@ import ./common.nix {
         })
       ];
       boot.kernelModules = lib.mkForce [ "virtio_gpu" ];
-      system.extraDependencies = [
-        software
+      system.extraDependencies = softwarePackages ++ [
         profileHelper
         image
       ];

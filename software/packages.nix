@@ -1,6 +1,6 @@
 { pkgs }:
 let
-  names = [
+  cliNames = [
     "gh"
     "git"
     "just"
@@ -17,23 +17,17 @@ let
   ];
 
   userPackages = import ./user-packages.nix;
-  localPackages.zen = import ./zen.nix { inherit pkgs; };
-  applications = map (name: localPackages.${name} or pkgs.${name}) userPackages.packages;
 
-  single = pkgs.lib.genAttrs names (name: pkgs.${name});
+  localPackages = {
+    omp = pkgs.callPackage ./omp.nix { };
+    zen = import ./zen.nix { inherit pkgs; };
+  };
 
-  base = pkgs.buildEnv {
-    name = "ember-base";
-    paths = map (name: pkgs.${name}) names;
-  };
-  omp = pkgs.callPackage ./omp.nix { };
-  workstation = pkgs.buildEnv {
-    name = "ember-workstation";
-    paths = [
-      base
-      omp
-    ]
-    ++ applications;
-  };
+  names = cliNames ++ [ "omp" ] ++ userPackages.packages;
 in
-single // localPackages // { inherit base omp workstation; }
+assert pkgs.lib.assertMsg (
+  builtins.length names == builtins.length (pkgs.lib.unique names)
+) "Ember profile package list contains duplicate names";
+pkgs.lib.genAttrs names (
+  name: localPackages.${name} or pkgs.${name} or (throw "Unknown Ember profile package: ${name}")
+)

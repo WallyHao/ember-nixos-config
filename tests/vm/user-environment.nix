@@ -4,7 +4,7 @@
   inventory,
 }:
 let
-  softwareBase = (import ../../software/packages.nix { inherit pkgs; }).workstation;
+  softwarePackages = builtins.attrValues (import ../../software/packages.nix { inherit pkgs; });
   profileHelper = pkgs.runCommand "ember-profile-helper-fixture" { } ''
     mkdir -p $out/scripts
     cp ${../../scripts/ember} $out/scripts/ember
@@ -92,7 +92,7 @@ let
         machine.succeed("runuser -u wallyhao -- test -x /etc/profiles/per-user/wallyhao/bin/vi")
         machine.succeed("runuser -u wallyhao -- test -x /etc/profiles/per-user/wallyhao/bin/vim")
 
-    with subtest("base profile is installed by the target user, not HM or root"):
+    with subtest("user profile is installed by the target user, not HM or root"):
         machine.fail("test -e ${profilePath}/bin/yazi")
         machine.succeed("findmnt /nix/store --types overlay")
         machine.succeed("test -d /nix/store/.links")
@@ -109,6 +109,10 @@ let
         as_user("${profilePath}/bin/git --version")
         as_user("${profilePath}/bin/yazi --version")
         as_user("${profilePath}/bin/eza --version")
+        manifest = as_user(f"nix profile list --profile {profilePath} --json")
+        t.assertNotIn('"workstation"', manifest)
+        for package in ["gh", "git", "jq", "omp", "zen"]:
+            t.assertIn('"{}"'.format(package), manifest)
         t.assertIn("18.18.6", as_user("${profilePath}/bin/omp --version"))
         t.assertIn("USAGE", as_user("${profilePath}/bin/omp --help"))
         as_user("printf 'startup:\\n  quiet: true\\n' > /home/wallyhao/.omp/agent/config.yml")
@@ -167,7 +171,7 @@ let
         machine.succeed("test -f /home/wallyhao/.config/swaylock/config")
         machine.succeed("test ! -f /home/wallyhao/.config/noctalia/config.toml")
 
-    with subtest("native profile history and rollback preserve the base"):
+    with subtest("native profile history and rollback preserve the user profile"):
         # Create unrooted packages in the real guest store. Only the native
         # profile generations may keep the history fixture alive during GC.
         for name in ("history", "garbage"):
@@ -246,8 +250,7 @@ import ./common.nix {
     {
       # Make the offline fixture available and registered without installing
       # its tools into the system PATH before the user's native profile step.
-      system.extraDependencies = [
-        softwareBase
+      system.extraDependencies = softwarePackages ++ [
         profileHelper
       ];
     };

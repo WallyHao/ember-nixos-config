@@ -16,7 +16,7 @@ build:
     ./scripts/ember build
 
 software-build:
-    nix build --no-link --print-out-paths --no-update-lock-file 'path:./software#workstation'
+    ./scripts/ember software-build
 
 # Run on Folio after mounting the internal Ember disk; copies private DATA only.
 migrate-folio-data:

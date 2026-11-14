@@ -1,0 +1,15 @@
+bat /nix/store/wfgfnbrwzbsj86bc1wfn4sljx1yr01va-bat-0.26.1
+btop /nix/store/yvml0qbd0gbg2pw22l82lgwfzz2jchq6-btop-1.4.8
+eza /nix/store/30nl3dlw3lnqji7qpn3nij62c9kmqflf-eza-0.23.5-man,/nix/store/ch08kx5samb5pj90334bi8xni48ljz7m-eza-0.23.5
+fd /nix/store/7ak9ay2cwyq9byhyigf72nf87mn283zp-fd-10.5.2
+fzf /nix/store/dmk3l3gcimarnv5x5qir7m7qyvljlb0a-fzf-0.74.5-man,/nix/store/vjr16w3fpcylkh26dj1nxgkzy2gsbmcg-fzf-0.74.5
+gh /nix/store/kp05nygc1wzpwrrdz9inn9pxvaiziwcq-gh-2.103.3
+git /nix/store/i2m3w4ly2w6grrmk1j59rb7zp09bssia-git-2.56.0
+jq /nix/store/00sg1s16cq6vld8sg6hy6q0kpxdgqzbg-jq-1.8.2-man,/nix/store/nh0wly5a1h79bfjgw46sly70ljdy1xkl-jq-1.8.2-bin
+just /nix/store/l06kipfars48zblhrh93h28vy4myrfid-just-1.59.0,/nix/store/wn9a9rdc6l4ggl14y8x2dca4j2lzpnpj-just-1.59.0-man
+omp /nix/store/6z9y6p3zxpnlm21dk2mpc3pawkyclrvq-oh-my-pi-18.18.6
+ripgrep /nix/store/whbrk657qmih065xal60m4khwf6cb9pj-ripgrep-15.2.0
+unzip /nix/store/fl6ffqm8pxv0cdmm4gx0d7vk3njd4dbc-unzip-6.0
+yazi /nix/store/qpqacb6d2a2g0h1g1sqlkxrb9fvxsf4r-yazi-26.9.1
+zen /nix/store/masqdlwfp0lw5vifjgx564l9m8vmc7lg-zen-beta-1.22.2b
+zoxide /nix/store/zz2n1hqg5qz32l4gkff2bpj3hm7l4lgy-zoxide-0.10.0
