@@ -7,7 +7,7 @@
 {
   config = lib.mkIf config.ember.desktop.enable {
     fonts.packages = [
-      (import ../../../packages/lxgw-wenkai-gb.nix { inherit pkgs; })
+      (import ../../packages/lxgw-wenkai-gb.nix { inherit pkgs; })
       pkgs.nerd-fonts.symbols-only
       pkgs.dejavu_fonts
     ];

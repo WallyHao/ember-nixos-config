@@ -14,7 +14,7 @@ let
   # Fastfetch's MIT-licensed ASCII artwork, stored locally. Pad *before*
   # adding ANSI colours: centering each ragged row distorts the snowflake.
   logoLines = lib.splitString "\n" (
-    lib.removeSuffix "\n" (builtins.readFile ./resources/nixos-logo.txt)
+    lib.removeSuffix "\n" (builtins.readFile ../appearance/resources/nixos-logo.txt)
   );
   stripColors = lib.replaceStrings [ "$1" "$2" ] [ "" "" ];
   logoWidth = lib.foldl' lib.max 0 (map (line: builtins.stringLength (stripColors line)) logoLines);

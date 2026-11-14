@@ -10,7 +10,7 @@ pkgs.stdenv.mkDerivation {
     pkgs.jansson
   ];
   buildPhase = ''
-    $CC -std=c11 -Wall -Wextra -Werror -O2 ${../modules/home/desktop/resources/input-language.c} \
+    $CC -std=c11 -Wall -Wextra -Werror -O2 ${../modules/desktop/resources/input-language.c} \
       $(pkg-config --cflags --libs gio-2.0 gio-unix-2.0 jansson) -o ember-input-language
   '';
   installPhase = "mkdir -p $out/bin; cp ember-input-language $out/bin/";

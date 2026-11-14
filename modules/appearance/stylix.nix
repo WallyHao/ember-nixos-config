@@ -2,7 +2,7 @@
 let
   # The only manually maintained palette input. Stylix normalises it into
   # `config.lib.stylix.colors`; every consumer below derives from that result.
-  source = builtins.fromJSON (builtins.readFile ../../../assets/themes/emberlight.json);
+  source = builtins.fromJSON (builtins.readFile ../../assets/themes/emberlight.json);
 
   scheme = source.palette // {
     inherit (source) author system variant;
@@ -25,11 +25,11 @@ in
     targets.console.enable = true;
     fonts = {
       monospace = {
-        package = import ../../../packages/lxgw-wenkai-gb.nix { inherit pkgs; };
+        package = import ../../packages/lxgw-wenkai-gb.nix { inherit pkgs; };
         name = "LXGW WenKai Mono GB";
       };
       sansSerif = {
-        package = import ../../../packages/lxgw-wenkai-gb.nix { inherit pkgs; };
+        package = import ../../packages/lxgw-wenkai-gb.nix { inherit pkgs; };
         name = "LXGW WenKai GB";
       };
       sizes = {

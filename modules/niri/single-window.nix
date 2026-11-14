@@ -12,7 +12,7 @@ let
       jq
       coreutils
     ];
-    text = builtins.readFile ./single-window-fullscreen.sh;
+    text = builtins.readFile ./single-window.sh;
   };
 in
 {

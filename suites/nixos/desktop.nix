@@ -1,6 +1,6 @@
 {
   imports = [
-    ../../modules/nixos/desktop
-    ../../modules/nixos/home-manager.nix
+    ../../modules/session
+    ../../modules/system/home-manager.nix
   ];
 }

@@ -3,10 +3,10 @@
     system = "x86_64-linux";
     hostName = "ember";
     stateVersion = "26.11";
-    hostModule = ../hosts/laptop;
-    physicalHardwareModule = ../hosts/laptop/hardware.nix;
+    hostModule = ../hosts/ember;
+    physicalHardwareModule = ../hosts/ember/hardware.nix;
     users = [ "wallyhao" ];
-    storage = import ../hosts/laptop/storage-spec.nix;
+    storage = import ../hosts/ember/storage-spec.nix;
   };
 
   users.wallyhao = {

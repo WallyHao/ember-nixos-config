@@ -24,17 +24,15 @@
   };
 
   imports = [
-    ./appearance/ember.nix
-    ./shared/profile-session.nix
-    ./desktop/niri
-    ./desktop
-    ./desktop/input-method.nix
-    ./tools/omp.nix
-    ./tools/btop.nix
-    ./terminal/foot.nix
-    ./terminal/tools.nix
-    ./terminal/zsh.nix
-    ./editor/nixvim.nix
-    ./tools/yazi.nix
+    ./theme.nix
+    ./waybar.nix
+    ./launcher.nix
+    ./notifications.nix
+    ./wallpaper.nix
+    ./session-tools.nix
+    ./security.nix
+    ./clipboard.nix
+    ./cursor.nix
+    ./input-method.nix
   ];
 }

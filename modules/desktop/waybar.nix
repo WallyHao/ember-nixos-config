@@ -7,7 +7,7 @@
 }:
 let
   c = config.ember.appearance.colors;
-  indicator = import ../../../packages/input-language.nix { inherit pkgs; };
+  indicator = import ../../packages/input-language.nix { inherit pkgs; };
 in
 {
   config = lib.mkIf config.ember.desktop.enable {

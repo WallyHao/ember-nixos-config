@@ -237,7 +237,7 @@ scan_grep() {
   # and every other host line remain subject to the original scan.
   if [ "$rc" -eq 0 ] && [ "$root" = "$repo" ] && [ "$description" = "host/disk reference" ]; then
     set +e
-    grep -vE '^hosts/laptop/storage-spec\.nix:[0-9]+:  targetDisk = "/dev/disk/by-id/nvme-eui\.[0-9a-f]{16}";$' "$output" > "$output.filtered"
+    grep -vE '^hosts/ember/storage-spec\.nix:[0-9]+:  targetDisk = "/dev/disk/by-id/nvme-eui\.[0-9a-f]{16}";$' "$output" > "$output.filtered"
     rc=$?
     set -e
     mv "$output.filtered" "$output"

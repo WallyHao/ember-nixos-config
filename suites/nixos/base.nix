@@ -1,5 +1,8 @@
 {
   imports = [
-    ../../modules/nixos/default.nix
+    ../../modules/system
+    ../../modules/network
+    ../../modules/power.nix
+    ../../modules/appearance
   ];
 }

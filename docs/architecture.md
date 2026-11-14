@@ -16,46 +16,37 @@ lib/
   mk-host.nix              the system assembly function
   deployment.nix           serializable deployment state
 
-hosts/laptop/
+hosts/ember/
   default.nix              host policy; imports the laptop suite
   hardware.nix             Intel/NVIDIA, initrd modules, firmware
-  power.nix                TLP parameters
+  power.nix                host-specific TLP parameters
   storage-spec.nix         target disk, layout module, confirmation
   storage.nix              binds storage-spec to the layout
   storage-layout.nix       disko partitions, Btrfs subvolumes, tmpfs root
 
 suites/nixos/
-  base.nix                 capability modules
-  desktop.nix              system desktop modules + Home Manager bridge
+  base.nix                 system, network, power, appearance
+  desktop.nix              graphical session + Home Manager bridge
   laptop.nix               base + desktop, TTY-only host policy
 
-modules/nixos/
-  default.nix              capability module root
-  identity.nix             ember.* identity into NixOS settings
-  accounts.nix             userborn, users, groups, passwords
-  boot.nix                 boot loader, initrd, getty
-  network.nix              NetworkManager, resolved, firewall
-  proxy.nix                Mihomo TUN proxy and helper CLI
-  power.nix                TLP ownership and power policy
-  memory.nix               zram, swap policy, Nix parallelism
-  persistence.nix          preservation mounts and early boot ordering
-  platform.nix             platform integration
-  home-manager.nix         system identity -> Home Manager user
-  foundation/              Nix, locale, maintenance, package policy
-  appearance/              Stylix, login, newt
-  desktop/                 session, security, audio, portals, input method
-
-modules/home/
-  default.nix              user environment root and desktop bridge options
-  appearance/              Emberlight adapters
-  desktop/                 Niri, Waybar, Fuzzel, Mako, clipboard, Zen, lock
-  terminal/                Foot, Zsh, terminal tools
-  editor/                  NixVim
-  tools/                   OMP, btop, Yazi
-  shared/                  profile/session integration
+modules/
+  system/                  identity, accounts, boot, platform, foundation,
+                           memory, persistence
+  network/                 NetworkManager, resolved, firewall, Mihomo proxy
+  power.nix                TLP and power policy
+  session/                 graphical session, PAM, portals, audio,
+                           system input method
+  appearance/              Stylix, login, TTY appearance and assets
+  desktop/                 Home Manager desktop options, theme, Waybar,
+                           Fuzzel, Mako, clipboard, lock, cursor
+  niri/                    Niri configuration, actions, bindings,
+                           single-window service and script
+  terminal/                Foot, Zsh, terminal tools and p10k
+  apps/                    NixVim and profile PATH/desktop integration
+  profile/                 configuration for profile-installed applications
 
 users/wallyhao/
-  home.nix                 imports modules/home and user preferences
+  home.nix                 imports desktop, niri, terminal, apps, profile
   preferences.nix          user preferences
   persistence.nix          user persistent directories
   bootstrap-password.nix   initial account hash
@@ -73,6 +64,11 @@ tests/
   fixtures/                virtual hardware and virtual storage
 ```
 
+Only `modules/` has public modules. A complex module is a directory with one
+`default.nix` entry point; a simple module is one `.nix` file. Consumers import
+the directory, not its internal files. Resources live with the module that owns
+them.
+
 ## Evaluation chain
 
 `flake.nix` imports `flake/hosts.nix`, `flake/modules.nix`,
@@ -84,9 +80,9 @@ The real system is assembled as:
 inventory.hosts.ember
   ├─ system, hostName, stateVersion
   ├─ physicalHardwareModule
-  ├─ hostModule = hosts/laptop
+  ├─ hostModule = hosts/ember
   ├─ users = [ "wallyhao" ]
-  └─ storage = hosts/laptop/storage-spec.nix
+  └─ storage = hosts/ember/storage-spec.nix
 
 inventory.users.wallyhao
   ├─ uid, home, login shell, groups
@@ -102,11 +98,11 @@ modules:
 ```text
 preservation.nixosModules.preservation
 stylix.nixosModules.stylix
-modules/nixos/default.nix
+modules/system/default.nix
 host.hostModule
 hardwareModule
 identityModule
-modules/nixos/home-manager.nix
+modules/system/home-manager.nix
 home-manager.nixosModules.home-manager
 users/wallyhao/persistence.nix
 disko.nixosModules.disko + storageModule   (only when storage is passed)
@@ -114,8 +110,8 @@ disko.nixosModules.disko + storageModule   (only when storage is passed)
 
 `identityModule` is generated in `mk-host.nix`; it supplies `ember.hostName`,
 `ember.stateVersion`, user identity, home module, and Home Manager state
-version. `modules/nixos/identity.nix` maps the system fields, while
-`modules/nixos/home-manager.nix` creates:
+version. `modules/system/identity.nix` maps the system fields, while
+`modules/system/home-manager.nix` creates:
 
 ```text
 home-manager.users.wallyhao
@@ -125,27 +121,29 @@ home-manager.users.wallyhao
   └─ home.stateVersion
 ```
 
-`users/wallyhao/home.nix` imports `modules/home` and `preferences.nix`.
-`modules/home/default.nix` bridges `osConfig.ember.desktop.enable` into the
-user session and imports the Niri, desktop, terminal, editor, and tool modules.
+`users/wallyhao/home.nix` imports the public Home Manager modules directly.
+`modules/desktop/default.nix` owns the `ember.desktop` Home Manager options and
+imports the desktop components. `modules/system/home-manager.nix` bridges the
+same identity into Home Manager.
 
 ## Host path
 
-The current host directory is still named `hosts/laptop`. Its actual chain is:
-
 ```text
 inventory.hosts.ember.hostModule
-  -> hosts/laptop/default.nix
+  -> hosts/ember/default.nix
      -> suites/nixos/laptop.nix
         -> suites/nixos/base.nix
-           -> modules/nixos/default.nix
+           -> modules/system
+           -> modules/network
+           -> modules/power.nix
+           -> modules/appearance
         -> suites/nixos/desktop.nix
-           -> modules/nixos/desktop
-           -> modules/nixos/home-manager.nix
-     -> hosts/laptop/power.nix
+           -> modules/session
+           -> modules/system/home-manager.nix
+     -> hosts/ember/power.nix
 ```
 
-`hosts/laptop/hardware.nix`, `storage-spec.nix`, `storage.nix`, and
+`hosts/ember/hardware.nix`, `storage-spec.nix`, `storage.nix`, and
 `storage-layout.nix` are passed separately by `mk-host.nix`.
 
 ## System and user ownership
@@ -154,9 +152,12 @@ System modules own boot, accounts, networking, proxy, power, persistence,
 login, portals, audio, and the system Stylix configuration.
 
 Home Manager modules own the user Niri configuration, Waybar, Fuzzel, Mako,
-Foot, Fcitx5, clipboard, lock/idle services, Zen, NixVim, and user tools.
-They read the Emberlight palette through `config.ember.appearance`, which is
-derived from Stylix; no adapter reads the JSON asset directly.
+Foot, Fcitx5, clipboard, lock/idle services, NixVim, and user tools. They read
+the Emberlight palette through `config.ember.appearance`, which is derived from
+Stylix; no adapter reads the JSON asset directly.
+
+`modules/profile/` contains configuration for applications installed by the
+separate software profile. It has no package download or installation logic.
 
 The user software profile is separate from both layers:
 
@@ -226,14 +227,4 @@ layoutConfirmed == true
 `nixosConfigurations.ember` is exported only when that condition holds.
 `system-preview` always uses `tests/fixtures/storage.nix` and never selects the
 real disk. VM tests use the fixtures under `tests/fixtures/`; no fixture value
-is written into `hosts/laptop/storage-spec.nix`.
-
-## Checks and fixtures
-
-`system-preview` combines the real hardware module with virtual storage.
-`tests/fixtures/hardware.nix` disables physical-only behavior where necessary.
-The VM checks cover accounts, persistence, offline boot, offline desktop,
-desktop interaction, user environment, and connectivity.
-
-`flake/checks.nix` also exposes `desktop-config`, `eval-contracts`, and
-`eval-user-environment`. The real host output is not activated by any check.
+is written into `hosts/ember/storage-spec.nix`.

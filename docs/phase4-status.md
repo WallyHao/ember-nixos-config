@@ -6,11 +6,16 @@
 
 ## 结构清理（2026-11-14）
 
+- 模块树整理为 10 个公开模块：`system`、`network`、`power`、
+  `session`、`appearance`、`desktop`、`niri`、`terminal`、`apps`、`profile`。
+  复杂模块使用一个目录和一个 `default.nix` 出口；消费者只导入目录。
+- 主机目录由 `hosts/laptop` 改为 `hosts/ember`；资源随所属模块移动，旧
+  `modules/nixos`/`modules/home` 层级删除。
 - 删除未导入的 `modules/home/appearance/hearth.nix`、
   `modules/home/desktop/noctalia.nix`、`noctalia-state.py`，以及旧 Hearth
   调色板资产和 Noctalia 测试 fixture。
 - 删除 Git 跟踪的 Python bytecode，并忽略后续 `__pycache__/`/`*.pyc`。
-- `docs/architecture.md`、`docs/operations.md` 和 Home 模块说明更新为当前
+- `docs/architecture.md`、`docs/operations.md` 和模块索引更新为当前
   Ember 结构；`first-boot.md`、`performance.md` 与 `phase3-decisions.md`
   增加历史提示，其他 phase 文档保留为历史记录。
 - 上述清理不改变已导入模块或运行时行为。
@@ -18,9 +23,9 @@
 ## 已验证
 
 - 最终真实系统 toplevel 构建成功：
-  `/nix/store/2qrcsgig4md6zyjfm2qy4ggn6xqnvg84-nixos-system-ember-26.11.20261107.dirty`。
-- 本次结构清理后，eval-contracts、eval-user-environment、desktop-config 和真实系统
-  toplevel 重新构建通过；toplevel 路径未变化，确认清理未改变已导入配置。
+  `/nix/store/rhb7ic3s6srn7srfz7wxrd8sjavk8bwk-nixos-system-ember-26.11.20261107.dirty`。
+- 本次结构整理后，eval-contracts、eval-user-environment、desktop-config 和真实系统
+  toplevel 重新构建通过；资源路径随模块移动，toplevel 路径按预期变化。
 - 锁定 Niri/Foot 配置校验通过。
 - CLI 模拟后端、ShellCheck、Bash 语法、Nix 格式、缓存指纹与代理数据规范化检查通过。
 - 代理连接 VM 通过：虚拟网络的 TUN/DNS/节点故障回退与恢复、关闭状态跨重启、连接持久化。

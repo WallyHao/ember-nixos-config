@@ -66,7 +66,7 @@
         text = ''
           exec ${
             pkgs.python3.withPackages (ps: [ ps.pyyaml ])
-          }/bin/python3 ${../scripts/migrate-folio-data.py} --normalizer ${../modules/nixos/proxy-data.py} "$@"
+          }/bin/python3 ${../scripts/migrate-folio-data.py} --normalizer ${../modules/network/proxy-data.py} "$@"
         '';
       };
 
@@ -113,7 +113,7 @@
               test -s ${hmCfg.xdg.configFile."fuzzel/fuzzel.ini".source}
               test -s ${hmCfg.xdg.configFile."waybar/config".source}
               test -s ${hmCfg.xdg.configFile."mako/config".source}
-              zsh -n ${../modules/home/terminal/resources/p10k.zsh}
+              zsh -n ${../modules/terminal/resources/p10k.zsh}
               zsh -n ${hmCfg.home.file."./.zshrc".source}
               nvim --headless -u ${nixvimInit} -c 'set number?' -c 'qa!' 2>&1 | grep -q 'number'
               touch $out

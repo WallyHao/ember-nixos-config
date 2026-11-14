@@ -38,11 +38,11 @@ let
   modules = [
     inputs.preservation.nixosModules.preservation
     inputs.stylix.nixosModules.stylix
-    ../modules/nixos/default.nix
+    ../modules/system/default.nix
     host.hostModule
     hardwareModule
     identityModule
-    ../modules/nixos/home-manager.nix
+    ../modules/system/home-manager.nix
     inputs.home-manager.nixosModules.home-manager
   ]
   ++ persistenceModules
