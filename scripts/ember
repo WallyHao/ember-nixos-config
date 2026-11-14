@@ -48,8 +48,8 @@ profile_fast_path() {
   old_flake="path:$(dirname "$repo")/hearth-nixos-config/software"
   local expected_json legacy
 
-  [ -x "$jqbin" ] && [ -e "$manifest" ] && [ -f "$repo/software/bootstrap-packages" ] || return 1
-  sha256sum --check --status "$repo/software/bootstrap-fingerprint" || return 1
+  [ -x "$jqbin" ] && [ -e "$manifest" ] && [ -f "$repo/software/bootstrap/packages" ] || return 1
+  (cd "$repo" && sha256sum --check --status software/bootstrap/fingerprint) || return 1
 
   expected_json=$(
     while IFS=$' \t' read -r name paths extra; do
@@ -57,11 +57,11 @@ profile_fast_path() {
       case "$name" in \#*) continue ;; esac
       [ -n "${paths:-}" ] && [ -z "${extra:-}" ] || return 1
       printf '%s\t%s\n' "$name" "$paths"
-    done < "$repo/software/bootstrap-packages" |
+    done < "$repo/software/bootstrap/packages" |
       "$jqbin" -Rn '[inputs | split("\t") | {name: .[0], paths: (.[1] | split(","))}]'
   ) || return 1
 
-  legacy=$(cat "$repo/software/legacy-workstations.json") || return 1
+  legacy=$(cat "$repo/software/bootstrap/legacy-workstations.json") || return 1
   # shellcheck disable=SC2016
   "$jqbin" -e \
     --arg flake "$flake" \
@@ -149,7 +149,7 @@ profile_reconcile() {
   if ! printf '%s\n' "$entries" | "$target_jq" -r \
     --arg flake "$flake" \
     --arg old "$old_flake" \
-    --argjson legacy "$(cat "$repo/software/legacy-workstations.json")" '
+    --argjson legacy "$(cat "$repo/software/bootstrap/legacy-workstations.json")" '
       .elements | to_entries[] |
       [
         .key,

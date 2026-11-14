@@ -30,7 +30,7 @@ just profile history
 just profile rollback
 ```
 
-Select applications in `software/user-packages.nix`, then `just profile install`.
+Select applications in `software/selection/user-packages.nix`, then `just profile install`.
 Native profile state remains `~/.local/state/nix/profiles/profile`; the old cached
 Hearth bundle and old local flake origin have bounded migration compatibility.
 

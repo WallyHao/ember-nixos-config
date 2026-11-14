@@ -16,11 +16,11 @@ let
     "unzip"
   ];
 
-  userPackages = import ./user-packages.nix;
+  userPackages = import ./selection/user-packages.nix;
 
   localPackages = {
-    omp = pkgs.callPackage ./omp.nix { };
-    zen = import ./zen.nix { inherit pkgs; };
+    omp = pkgs.callPackage ./packages/omp.nix { };
+    zen = import ./packages/zen.nix { inherit pkgs; };
   };
 
   names = cliNames ++ [ "omp" ] ++ userPackages.packages;

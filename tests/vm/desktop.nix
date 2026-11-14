@@ -4,7 +4,7 @@
   inventory,
 }:
 let
-  softwarePackages = builtins.attrValues (import ../../software/packages.nix { inherit pkgs; });
+  softwarePackages = builtins.attrValues (import ../../software/package-set.nix { inherit pkgs; });
   profileHelper = pkgs.runCommand "ember-desktop-profile-fixture" { } ''
     mkdir -p $out/scripts
     cp ${../../scripts/ember} $out/scripts/ember

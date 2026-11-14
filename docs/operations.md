@@ -36,7 +36,7 @@ nix profile history --profile "$HOME/.local/state/nix/profiles/profile"
 nix profile rollback --profile "$HOME/.local/state/nix/profiles/profile"
 ```
 
-Edit `software/user-packages.nix`, then run `just profile install` to add or
+Edit `software/selection/user-packages.nix`, then run `just profile install` to add or
 remove declared applications. See [the software notes](../software/README.md).
 
 The current configuration preserves a normal `passwd` change across reboots

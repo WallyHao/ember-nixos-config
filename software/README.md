@@ -1,5 +1,25 @@
 # 用户软件
 
+目录按职责划分：
+
+```text
+software/
+├── flake.nix
+├── flake.lock
+├── package-set.nix          # 声明并组合用户 profile 包
+├── policy.nix               # 系统/profile 共享的 allowUnfree 规则
+├── packages/                # 用户 profile 专用的本地 package recipes
+│   ├── omp.nix
+│   └── zen.nix
+├── selection/
+│   └── user-packages.nix    # 额外应用选择
+├── bootstrap/
+│   ├── packages             # 逐包 store path
+│   ├── fingerprint          # 声明一致性校验
+│   └── legacy-workstations.json
+└── README.md
+```
+
 在 Ember 上，由 `wallyhao` 在配置仓库运行：
 
 ```sh
@@ -11,11 +31,11 @@ just profile rollback
 just profile rollback 3
 ```
 
-`just profile install` 会构建并同步 `software/packages.nix` 声明的软件：
+`just profile install` 会构建并同步 `software/package-set.nix` 声明的软件：
 
 - 基础 CLI：gh、git、just、yazi、eza、bat、fd、ripgrep、fzf、zoxide、jq、btop、unzip；
 - OMP；
-- `user-packages.nix` 中选择的应用。
+- `selection/user-packages.nix` 中选择的应用。
 
 每个包都是独立的 profile entry；`nix profile list` 直接显示包名，不再使用
 `base` 或 `workstation` 聚合 bundle。增加、删除或升级某个包只影响对应 entry。
@@ -24,7 +44,7 @@ Home Manager，不更新 flake.lock。
 
 ## 添加应用
 
-只编辑 `software/user-packages.nix` 的软件选择，例如：
+只编辑 `software/selection/user-packages.nix` 的软件选择，例如：
 
 ```nix
 {
@@ -52,10 +72,10 @@ Ember 的 home 是按目录持久化的。QQ 的登录数据还需要在
 
 - 只管理 `originalUrl` 指向本仓库 `software` flake 的 profile entry；
 - 手动安装的其他 entry 原样保留；
-- 从 `user-packages.nix` 删除应用后，下一次 `just profile install` 只移除对应 entry；
+- 从 `selection/user-packages.nix` 删除应用后，下一次 `just profile install` 只移除对应 entry；
 - 构建失败时不触碰 profile；
 - 旧 `workstation` bundle 会在新包安装成功后被移除；
-- 旧缓存路径记录在 `legacy-workstations.json`，只清理明确匹配的旧 entry。
+- 旧缓存路径记录在 `bootstrap/legacy-workstations.json`，只清理明确匹配的旧 entry。
 
 `nix profile history` 和 `rollback` 仍按 generation 工作；单包粒度体现为独立
 entry，可以单独 `nix profile remove` 或 `nix profile upgrade`。
@@ -66,13 +86,13 @@ entry，可以单独 `nix profile remove` 或 `nix profile upgrade`。
 just software-build
 ```
 
-该命令逐个构建 `software/packages.nix` 中的全部包并打印 store path。
+该命令逐个构建 `package-set.nix` 中的全部包并打印 store path。
 
-- `software/bootstrap-packages` 记录首次安装需要复制的逐包 store closure；
-- `software/bootstrap-fingerprint` 记录软件声明、lock 和构建定义的校验值；
+- `bootstrap/packages` 记录首次安装需要复制的逐包 store closure；
+- `bootstrap/fingerprint` 记录软件声明、lock 和构建定义的校验值；
 - 声明与指纹一致时，已有 profile 可以跳过重新构建；
 - 正常使用不要手工更新 fingerprint。只有重新准备安装缓存，并确认
-  `bootstrap-packages` 与当前构建结果一致时才更新它。
+  `bootstrap/packages` 与当前构建结果一致时才更新它。
 
 本地 flake 的 origin 跟随当前仓库位置；请在 Ember 的持久仓库路径操作。
 兼容旧 `hearth-nixos-config` origin；旧目录名必须保留指向新目录的链接，

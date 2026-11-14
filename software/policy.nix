@@ -11,6 +11,6 @@
         "nvidia-x11"
         "nvidia-settings"
       ]
-      ++ (import ./user-packages.nix).allowedUnfree
+      ++ (import ./selection/user-packages.nix).allowedUnfree
     );
 }

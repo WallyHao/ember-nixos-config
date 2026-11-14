@@ -53,12 +53,17 @@ users/wallyhao/
 
 software/
   flake.nix                independent nixpkgs pin for the user profile
-  packages.nix             individually exposed user-profile packages
-  user-packages.nix        additional application selection
+  package-set.nix          individually exposed user-profile packages
   policy.nix               explicit unfree allowlist
-  omp.nix, zen.nix         local package definitions
-  bootstrap-packages       per-package store paths for first install
-  bootstrap-fingerprint    declaration/cache consistency check
+  packages/                profile-specific package recipes
+    omp.nix
+    zen.nix
+  selection/
+    user-packages.nix      additional application selection
+  bootstrap/
+    packages               per-package store paths for first install
+    fingerprint            declaration/cache consistency check
+    legacy-workstations.json
 
 tests/
   eval/                    Nix evaluation contracts
@@ -167,7 +172,7 @@ The user software profile is separate from both layers:
 software/flake.nix
   -> packages.x86_64-linux.<name>
        -> one profile entry per declared package
-       -> bootstrap-packages provides the matching offline closure paths
+       -> bootstrap/packages provides the matching offline closure paths
 ```
 
 It has its own `software/flake.lock`. `just profile install` manages

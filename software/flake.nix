@@ -18,6 +18,6 @@
       };
     in
     {
-      packages.${system} = import ./packages.nix { inherit pkgs; };
+      packages.${system} = import ./package-set.nix { inherit pkgs; };
     };
 }

@@ -8,8 +8,8 @@ temporary=$(mktemp -d)
 trap 'rm -rf "$temporary"' EXIT
 repo="$temporary/repo"
 export HOME="$temporary/home"
-mkdir -p "$repo/software" "$HOME/.local/state/nix/profiles/profile/bin" "$temporary/targets"
-cp "$project/software/legacy-workstations.json" "$repo/software/"
+mkdir -p "$repo/software/bootstrap" "$HOME/.local/state/nix/profiles/profile/bin" "$temporary/targets"
+cp "$project/software/bootstrap/legacy-workstations.json" "$repo/software/bootstrap/"
 manifest="$HOME/.local/state/nix/profiles/profile/manifest.json"
 calls="$temporary/calls"
 : >"$calls"
@@ -23,7 +23,7 @@ expect_failure() {
 }
 set_desired() {
   mock_desired=("$@")
-  : >"$repo/software/bootstrap-packages"
+  : >"$repo/software/bootstrap/packages"
   for name in "${mock_desired[@]}"; do
     target="$temporary/targets/$name"
     mkdir -p "$target/bin"
@@ -34,7 +34,7 @@ set_desired() {
       chmod +x "$target/bin/$name"
     fi
     targets[$name]="$target"
-    printf '%s %s\n' "$name" "$target" >>"$repo/software/bootstrap-packages"
+    printf '%s %s\n' "$name" "$target" >>"$repo/software/bootstrap/packages"
   done
 }
 declare -A targets
@@ -42,7 +42,7 @@ declare -a mock_desired
 set_desired gh git jq omp zen
 ln -sf "$(command -v jq)" "$HOME/.local/state/nix/profiles/profile/bin/jq"
 printf 'v1\n' >"$repo/software/declaration"
-(cd "$repo" && sha256sum software/declaration >software/bootstrap-fingerprint)
+(cd "$repo" && sha256sum software/declaration >software/bootstrap/fingerprint)
 cd "$repo"
 
 # A profile entry with a different owner must never be replaced by reconciliation.
@@ -133,6 +133,8 @@ nix() {
   esac
 }
 
+profile_install_from_repo() { (cd "$repo" && profile_install); }
+
 mkdir -p "$(dirname "$manifest")"
 jq -n --arg url "path:$repo/software" '
   {
@@ -162,7 +164,7 @@ jq -n --arg url "path:$repo/software" '
 # The changed declaration invalidates the fast path, so migration must build and reconcile.
 printf 'v2\n' >"$repo/software/declaration"
 : >"$calls"
-profile_install
+profile_install_from_repo
 jq -e '
   .elements.cargo and .elements.uv and
   (.elements.workstation == null) and
@@ -173,9 +175,9 @@ grep -q 'profile remove .*workstation' "$calls"
 
 # Matching declaration and entries must not touch the profile.
 printf 'v1\n' >"$repo/software/declaration"
-(cd "$repo" && sha256sum software/declaration >software/bootstrap-fingerprint)
+(cd "$repo" && sha256sum software/declaration >software/bootstrap/fingerprint)
 : >"$calls"
-profile_install
+profile_install_from_repo
 if grep -Eq '^build |profile (add|upgrade|remove)' "$calls"; then
   echo 'Fast path unexpectedly invoked Nix' >&2
   exit 1
@@ -185,7 +187,7 @@ fi
 set_desired gh git jq omp
 printf 'v3\n' >"$repo/software/declaration"
 : >"$calls"
-profile_install
+profile_install_from_repo
 jq -e '.elements.zen == null and .elements.gh and .elements.cargo and .elements.uv' "$manifest" >/dev/null
 grep -q 'profile remove .*zen' "$calls"
 
@@ -195,7 +197,7 @@ set_desired gh git jq omp new
 printf 'v4\n' >"$repo/software/declaration"
 : >"$calls"
 fail_build=true
-expect_failure profile_install
+expect_failure profile_install_from_repo
 cmp "$manifest" "$temporary/before"
 if grep -Eq 'profile (add|upgrade|remove)' "$calls"; then
   echo 'Failed build unexpectedly changed the profile' >&2
@@ -210,7 +212,7 @@ jq '.elements.gh = {originalUrl:"flake:nixpkgs",attrPath:"legacyPackages.x86_64-
 cp "$temporary/new" "$manifest"
 printf 'v5\n' >"$repo/software/declaration"
 : >"$calls"
-expect_failure profile_install >/dev/null 2>"$temporary/error"
+expect_failure profile_install_from_repo >/dev/null 2>"$temporary/error"
 grep -q 'not managed by Ember' "$temporary/error"
 jq -e '.elements.gh.originalUrl == "flake:nixpkgs"' "$manifest" >/dev/null
 if grep -Eq 'profile (add|upgrade|remove)' "$calls"; then

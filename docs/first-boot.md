@@ -22,7 +22,7 @@ just profile-install
 
 该入口不需要网络或 sudo，安装基础工具和 OMP；重复执行不会新建相同 profile generation。
 它仅允许在 Hearth 上由 wallyhao 执行，避免把软件误装到当前 USB 系统。
-首次安装使用 software/bootstrap-packages 中记录的逐包 store path；当前 Ember
+首次安装使用 software/bootstrap/packages 中记录的逐包 store path；当前 Ember
 使用 `just profile install` 逐个同步，不再要求手写长 store path。
 
 安装环境已成功把该 closure 复制到新系统，并完成目标数据库与 254 个依赖路径的只读校验。这个 profile 包含基础终端工具和 oh-my-pi；Home Manager 不自动安装它。

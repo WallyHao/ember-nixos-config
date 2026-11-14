@@ -76,7 +76,7 @@ DB 持久化。旧 Noctalia 跨重启加密历史保留原数据，不解密导�
 - 新源码复制到新目录，旧链接必须一直解析到同一个新目录，保证 native profile 的旧
   `originalUrl=path:.../hearth-nixos-config/software` 还能读取软件 flake。
 - 新 helper 同时识别旧/新 origin，已跟踪的条目走原生升级。旧缓存路径和旧
-  `workstation` bundle 记录在 software/legacy-workstations.json，仅移除明确识别的
+  `workstation` bundle 记录在 software/bootstrap/legacy-workstations.json，仅移除明确识别的
   旧缓存，不动其他软件。当前 profile 使用逐包 entry；`just profile list` 直接显示包名。
 - 并存迁移优先级依据现有旧 bundle 计算，逐包安装成功后才删除旧缓存。迁移可能产生
   两代原生 profile；需要回到迁移前时使用 just profile history 查看记录，再 rollback 指定代。
@@ -98,7 +98,7 @@ just profile rollback
 代理导入/启停在底层需要 sudo。旧 Hearth generation 可以用兼容 helper 做原有操作，
 但订阅源的新增支持需要实际更新到 Ember 的新系统服务后才能使用。
 新软件缓存路径来自实际 Ember 逐包构建；部署时还需把 `just software-build`
-输出的 closure 复制到目标，只复制 `bootstrap-packages` 文本不代表离线安装缓存已到位。
+输出的 closure 复制到目标，只复制 `bootstrap/packages` 文本不代表离线安装缓存已到位。
 
 ## 5. 最终验证和应用顺序
 
