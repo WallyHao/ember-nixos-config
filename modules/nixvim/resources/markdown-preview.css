@@ -1,0 +1,71 @@
+/*
+ * Emberlight overrides for the markdown-preview.nvim page.
+ *
+ * Concatenated after the plugin's own markdown.css, so the upstream layout
+ * stays intact and only colours/fonts change. `@baseXX@` tokens are replaced
+ * with config.ember.appearance.colors at build time.
+ */
+
+:root,
+[data-theme="dark"] {
+  /* markdown.css variables */
+  --color-text-primary: @base05@;
+  --color-text-tertiary: @base04@;
+  --color-text-link: @base0D@;
+  --color-bg-primary: @base00@;
+  --color-bg-secondary: @base01@;
+  --color-bg-tertiary: @base01@;
+  --color-border-primary: @base02@;
+  --color-border-secondary: @base02@;
+  --color-border-tertiary: @base03@;
+  --color-kbd-foreground: @base06@;
+  --color-markdown-blockquote-border: @base03@;
+  --color-markdown-table-border: @base02@;
+  --color-markdown-table-tr-border: @base03@;
+  --color-markdown-code-bg: @base02@;
+
+  /* page.css variables; that stylesheet loads before this one */
+  --foreground-color: @base05@;
+  --background-color: @base00@;
+  --border-color: @base02@;
+  --secondary-background-color: @base00@;
+}
+
+html,
+body,
+main {
+  color: @base05@;
+  background-color: @base00@;
+}
+
+#page-ctn,
+#page-header,
+.markdown-body {
+  font-family: "LXGW WenKai GB", "Noto Sans CJK SC", sans-serif;
+}
+
+.markdown-body {
+  color: @base05@;
+  background-color: @base00@;
+  border-color: @base02@;
+}
+
+.markdown-body h6,
+.markdown-body blockquote {
+  color: @base04@;
+}
+
+.markdown-body a:hover {
+  color: @base06@;
+}
+
+.markdown-body pre {
+  color: @base05@;
+  background-color: @base01@;
+}
+
+.markdown-body code,
+.markdown-body pre code,
+.markdown-body kbd {
+  font-family: "LXGW WenKai Mono GB", monospace;
+}

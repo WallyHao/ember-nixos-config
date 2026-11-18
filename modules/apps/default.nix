@@ -1,5 +1,3 @@
 {
-  imports = [
-    ./nixvim.nix
-  ];
+  imports = [ ];
 }

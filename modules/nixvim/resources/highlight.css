@@ -1,0 +1,97 @@
+/*
+ * Emberlight highlight.js palette for markdown-preview.nvim.
+ *
+ * Concatenated after the plugin's own highlight.css (GitHub light theme),
+ * overriding every hardcoded colour. `@baseXX@` tokens are replaced with
+ * config.ember.appearance.colors at build time.
+ */
+
+.hljs {
+  color: @base05@;
+  background: @base01@;
+}
+
+.hljs-comment,
+.hljs-quote {
+  color: @base03@;
+  font-style: italic;
+}
+
+.hljs-keyword,
+.hljs-selector-tag,
+.hljs-subst {
+  color: @base0E@;
+}
+
+.hljs-number,
+.hljs-literal,
+.hljs-variable,
+.hljs-template-variable,
+.hljs-tag .hljs-attr {
+  color: @base09@;
+}
+
+.hljs-string,
+.hljs-doctag {
+  color: @base0B@;
+}
+
+.hljs-title,
+.hljs-section,
+.hljs-selector-id {
+  color: @base0D@;
+  font-weight: bold;
+}
+
+.hljs-subst {
+  font-weight: normal;
+}
+
+.hljs-type,
+.hljs-class .hljs-title {
+  color: @base0A@;
+  font-weight: bold;
+}
+
+.hljs-tag,
+.hljs-name,
+.hljs-attribute {
+  color: @base0C@;
+  font-weight: normal;
+}
+
+.hljs-regexp,
+.hljs-link {
+  color: @base0B@;
+}
+
+.hljs-symbol,
+.hljs-bullet {
+  color: @base08@;
+}
+
+.hljs-built_in,
+.hljs-builtin-name {
+  color: @base09@;
+}
+
+.hljs-meta {
+  color: @base03@;
+  font-weight: bold;
+}
+
+.hljs-deletion {
+  background: @base0F@;
+}
+
+.hljs-addition {
+  background: @base02@;
+}
+
+.hljs-emphasis {
+  font-style: italic;
+}
+
+.hljs-strong {
+  font-weight: bold;
+}
