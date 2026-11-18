@@ -99,5 +99,9 @@ makeDiskoTest {
     # its backdoor. Keep the target's locked root entry; the backdoor uses
     # agetty autologin on the serial console and does not need a root password.
     users.users.root.hashedPasswordFile = pkgs.lib.mkForce null;
+
+    # VM login uses a fixed test credential, never the local account hash.
+    users.users.wallyhao.initialHashedPassword = pkgs.lib.mkForce null;
+    users.users.wallyhao.initialPassword = "kl;'";
   };
 }

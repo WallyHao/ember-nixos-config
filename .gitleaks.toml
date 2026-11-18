@@ -19,10 +19,7 @@ description = "Generic credential assignment"
 regex = '''(?i)(api[_-]?key|secret|token|password)[[:space:]]*[:=][[:space:]]*["'][A-Za-z0-9_./+=-]{16,}["']'''
 
 [allowlist]
-description = "The published initial bootstrap hash is intentionally public; no repository-wide exemption."
+description = "The untracked local hash still exists in historical commits; the current file is a loader."
 paths = [
   '''^users/wallyhao/bootstrap-password\.nix$''',
-]
-regexes = [
-  '''\$6\$FUtCUAkiq1UfN1b4\$irExWYF5vivRAWnH43QzA/w0wVcUyD\.CnI/9e9ahuR2RBdwc/v7/5upFCzjJIb5SUwP4n6w3KX6b22s4EeW0J\.''',
 ]

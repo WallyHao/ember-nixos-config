@@ -43,7 +43,21 @@ If the private sources are not readable without a password in your session, run
 the step interactively as the owner of those files. Never paste private sources
 into chat, the repository, or the Nix store.
 
-## 2. Repository directory on the target
+## 2. Local initial account hash
+
+The repository contains no usable account hash. Before building the installable
+system, create the git-ignored local file with the existing password, or with a
+new one that you change after the first login:
+
+```sh
+printf '"%s"\n' "$(mkpasswd -m sha-512)" > users/wallyhao/bootstrap-password.local.nix
+chmod 600 users/wallyhao/bootstrap-password.local.nix
+```
+
+Without this file the build still evaluates with an unusable placeholder hash,
+and the account cannot log in.
+
+## 3. Repository directory on the target
 
 The canonical directory is `ember-nixos-config`; `hearth-nixos-config` remains a
 compatibility link so existing profile entries keep resolving their
@@ -63,7 +77,7 @@ ls -ld /mnt/persist/home/wallyhao/Workspace/*nixos-config
 Then copy this repository over the canonical directory. Other personal data in
 the target home is left alone.
 
-## 3. Install the already-built system
+## 4. Install the already-built system
 
 Keep the repository root free of build products (`result*`, `*.qcow2`); put GC
 roots outside it, for example:
@@ -100,7 +114,7 @@ Booting from the internal disk is the operator's decision; nothing here reboots.
 The installed system has hostname `ember`, login title `EMBERLIGHT`, user
 `wallyhao`, and the existing password and `stateVersion`.
 
-## 4. After the first boot
+## 5. After the first boot
 
 ```sh
 cd ~/Workspace/ember-nixos-config

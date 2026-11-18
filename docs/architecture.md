@@ -53,7 +53,7 @@ users/wallyhao/
   home.nix                 imports desktop, niri, terminal, nixvim, programs
   preferences.nix          user preferences
   persistence.nix          user persistent directories
-  bootstrap-password.nix   initial account hash
+  bootstrap-password.nix   local initial-hash loader
 
 software/
   flake.nix                independent nixpkgs pin for the user profile
