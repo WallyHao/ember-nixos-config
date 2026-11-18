@@ -1,3 +1,0 @@
-#!/usr/bin/env bash
-# Compatibility entry; canonical implementation is scripts/ember.
-exec "$(dirname "$0")/ember" "$@"
