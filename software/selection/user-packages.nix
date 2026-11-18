@@ -1,7 +1,13 @@
-# Additional user applications, installed by `just profile install`.
+# Additional user applications, installed by `just apps`.
 # Example: packages = [ "qq" ]; allowedUnfree = [ "qq" ];
 # QQ also needs .config/QQ in users/wallyhao/persistence.nix to retain its data.
 {
-  packages = [ "zen" ];
+  packages = [
+    "zen"
+    "powertop"
+    "powerstat"
+    "intel-gpu-tools"
+    "turbostat"
+  ];
   allowedUnfree = [ ];
 }
