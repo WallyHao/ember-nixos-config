@@ -86,6 +86,11 @@ makeDiskoTest {
     _module.args = { inherit inputs; };
     nix.settings.auto-optimise-store = pkgs.lib.mkForce false;
 
+    # The VM has no real GPU. Keep Steam and the 32-bit graphics stack out of
+    # every VM closure: they would dominate build time and prove nothing on
+    # virtio-gpu. Production keeps ember.gaming.enable at its default.
+    ember.gaming.enable = false;
+
     # Test-only tooling for real PAM/TTY login checks. It is not part of the
     # target system package set.
     environment.systemPackages = [ pkgs.expect ];
