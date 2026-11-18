@@ -38,6 +38,7 @@ let
   modules = [
     inputs.preservation.nixosModules.preservation
     inputs.stylix.nixosModules.stylix
+    inputs.nixos-cli.nixosModules.nixos-cli
     ../modules/system/default.nix
     host.hostModule
     hardwareModule

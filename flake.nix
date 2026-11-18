@@ -27,6 +27,13 @@
       inputs.nixpkgs.follows = "nixpkgs";
       inputs.flake-parts.follows = "flake-parts";
     };
+
+    # Unified NixOS tooling; pinned to the 0.16.1 release commit.
+    nixos-cli = {
+      url = "https://github.com/nix-community/nixos-cli/archive/c271826e6cc755268b56269837e05c0ff9de5101.tar.gz";
+      inputs.nixpkgs.follows = "nixpkgs";
+      inputs.flake-parts.follows = "flake-parts";
+    };
   };
 
   outputs =

@@ -29,7 +29,13 @@
 
   # The repository's bootstrap recipe must work before the user profile
   # (which also contains just) has been installed.
-  environment.systemPackages = [ pkgs.just ];
+  # Graphviz stays system-level because skill tooling renders ```dot blocks to
+  # SVG (render-graphs.js) and must work for any user or harness without a
+  # profile install.
+  environment.systemPackages = [
+    pkgs.just
+    pkgs.graphviz
+  ];
 
   nix.settings = {
     experimental-features = [
@@ -52,25 +58,30 @@
     "d /nix/var/nix/builds 0755 root root -"
   ];
 
-  # Native system-profile trimming first, then collect only unreachable
-  # objects. No global --delete-older-than scan of user profiles.
+  # Share the system-generation retention and lock with nixos refresh.
   systemd.services.ember-nix-gc = {
     description = "Trim Ember system generations and collect unreachable store paths";
-    serviceConfig.Type = "oneshot";
-    path = [ config.nix.package ];
-    script = ''
-      if [ -e /nix/var/nix/profiles/system ]; then
-        nix-env -p /nix/var/nix/profiles/system --delete-generations +5
-      fi
-      nix-collect-garbage
-    '';
+    serviceConfig = {
+      Type = "oneshot";
+      ExecStart = lib.getExe (
+        import ../maintenance/gc.nix {
+          inherit pkgs;
+          nix = config.nix.package;
+          esp = config.boot.loader.efi.efiSysMountPoint;
+        }
+      );
+    };
   };
 
   systemd.timers.ember-nix-gc = {
     wantedBy = [ "timers.target" ];
     timerConfig = {
-      OnCalendar = "weekly";
-      # Do not replay a missed weekly run during boot.
+      # Trim shortly after boot, then every three days. Retention is still
+      # count-based (+5), so this only bounds how many generations can
+      # accumulate between checks.
+      OnBootSec = "30min";
+      OnUnitActiveSec = "3d";
+      # Do not replay a missed run during boot.
       Persistent = false;
       RandomizedDelaySec = "1h";
     };

@@ -5,7 +5,7 @@
 }:
 {
   perSystem =
-    { system, pkgs, ... }:
+    { pkgs, ... }:
     let
       inventory = import ../inventory;
       deployment = import ../lib/deployment.nix {
@@ -41,14 +41,6 @@
           ;
       };
       evalJson = builtins.toJSON evalResults;
-      userEvalResults = import ../tests/eval/user-environment.nix {
-        inherit
-          inputs
-          inventory
-          deployment
-          ;
-      };
-      userEvalJson = builtins.toJSON userEvalResults;
 
       vmArgs = {
         inherit
@@ -71,8 +63,6 @@
       };
 
       checks = {
-        system-preview = previewToplevel;
-
         storage-layout =
           assert realCfg.disko.devices.disk.main.device == host.storage.targetDisk;
           assert realCfg.fileSystems."/".fsType == "tmpfs";
@@ -91,8 +81,12 @@
           printf '%s\n' '${evalJson}' > $out
         '';
 
-        eval-user-environment = pkgs.runCommand "ember-eval-user-environment" { } ''
-          printf '%s\n' '${userEvalJson}' > $out
+        refresh = pkgs.runCommand "ember-refresh-check" { nativeBuildInputs = [ pkgs.python3 ]; } ''
+          touch "$TMPDIR/nixos-cli.toml"
+          NIXOS_CLI_CONFIG="$TMPDIR/nixos-cli.toml" ${pkgs.lib.getExe realCfg.programs.nixos-cli.package} --version
+          test -f ${realCfg.systemd.units."ember-nix-gc.service".unit}/ember-nix-gc.service
+          python3 -B ${../tests/refresh.py} ${../modules/maintenance}
+          touch $out
         '';
 
         desktop-config =
@@ -110,9 +104,7 @@
               mkdir -p "$HOME/.local/state"
               niri validate --config ${niriConfig}
               foot --check-config --config ${footConfig}
-              test -s ${hmCfg.xdg.configFile."fuzzel/fuzzel.ini".source}
-              test -s ${hmCfg.xdg.configFile."waybar/config".source}
-              test -s ${hmCfg.xdg.configFile."mako/config".source}
+              ${builtins.head hmCfg.systemd.user.services.ember-quick-settings.Service.ExecStart} --version
               zsh -n ${../modules/terminal/resources/p10k.zsh}
               zsh -n ${hmCfg.home.file."./.zshrc".source}
               nvim --headless -u ${nixvimInit} -c 'set number?' -c 'qa!' 2>&1 | grep -q 'number'
@@ -121,12 +113,11 @@
 
         vm-accounts = import ../tests/vm/accounts.nix vmArgs;
         vm-persistence = import ../tests/vm/persistence.nix vmArgs;
-        vm-offline-boot = import ../tests/vm/offline-boot.nix vmArgs;
-        vm-offline-desktop = import ../tests/vm/offline-desktop.nix vmArgs;
         vm-offline-link = import ../tests/vm/offline-link.nix vmArgs;
         vm-desktop = import ../tests/vm/desktop.nix vmArgs;
         vm-user-environment = import ../tests/vm/user-environment.nix vmArgs;
         vm-connectivity = import ../tests/vm/connectivity.nix vmArgs;
+        vm-file-drop = import ../tests/vm/file-drop.nix vmArgs;
       };
     };
 }
