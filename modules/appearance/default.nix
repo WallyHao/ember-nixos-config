@@ -1,7 +1,3 @@
 {
-  imports = [
-    ./stylix.nix
-    ./login.nix
-    ./newt.nix
-  ];
+  imports = import ../../lib/module-dir.nix ./.;
 }

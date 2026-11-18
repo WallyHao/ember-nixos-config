@@ -1,6 +1,3 @@
 {
-  imports = [
-    ./base.nix
-    ./proxy.nix
-  ];
+  imports = import ../../lib/module-dir.nix ./.;
 }

@@ -1,11 +1,4 @@
-{
-  config,
-  lib,
-  ...
-}:
-let
-  cfg = config.ember.desktop;
-in
+{ lib, ... }:
 {
   options.ember.desktop.enable = lib.mkOption {
     type = lib.types.bool;
@@ -13,12 +6,5 @@ in
     description = "Enable the Ember graphical user session and Home Manager desktop.";
   };
 
-  imports = [
-    ./session.nix
-    ./security.nix
-    ./audio.nix
-    ./portals.nix
-    ./input-method.nix
-  ];
-
+  imports = import ../../lib/module-dir.nix ./.;
 }

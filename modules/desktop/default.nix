@@ -23,16 +23,5 @@
     description = "Foot font string.";
   };
 
-  imports = [
-    ./theme.nix
-    ./waybar.nix
-    ./launcher.nix
-    ./notifications.nix
-    ./wallpaper.nix
-    ./session-tools.nix
-    ./security.nix
-    ./clipboard.nix
-    ./cursor.nix
-    ./input-method.nix
-  ];
+  imports = import ../../lib/module-dir.nix ./.;
 }

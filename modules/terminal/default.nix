@@ -1,7 +1,3 @@
 {
-  imports = [
-    ./foot.nix
-    ./zsh.nix
-    ./tools.nix
-  ];
+  imports = import ../../lib/module-dir.nix ./.;
 }
