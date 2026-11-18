@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 set -u
 
+# A lone tiled window on the focused workspace grows to 100% of the working
+# area width; the window keeps its height, the layout gaps and the focus ring.
+# When a second tiled window appears, the tracked window returns to the default
+# 50% column width so both columns sit side by side.
+
 auto=""
 declare -A known=()
 
@@ -24,58 +29,31 @@ remove_id() {
   auto="$kept"
 }
 
-toggle() {
-  niri msg action maximize-window-to-edges --id "$1" >/dev/null 2>&1 || true
-}
-
-set_half_width() {
-  local id="$1" prev
+# set-column-width only acts on the focused column, so temporarily focus the
+# target window and restore the previous focus afterwards.
+set_column_width() {
+  local id="$1" width="$2" prev
   prev=$(niri msg -j focused-window | jq -r '.id // empty')
   if [ "$prev" != "$id" ]; then
-    niri msg action focus-window --id "$id" >/dev/null 2>&1 || true
+    if ! niri msg action focus-window --id "$id" >/dev/null 2>&1; then
+      return 0
+    fi
   fi
-  niri msg action set-column-width "50%" >/dev/null 2>&1 || true
+  niri msg action set-column-width "$width" >/dev/null 2>&1 || true
   if [ -n "$prev" ] && [ "$prev" != "$id" ]; then
     niri msg action focus-window --id "$prev" >/dev/null 2>&1 || true
   fi
 }
 
-window_json() {
-  niri msg -j windows
-}
-
-is_maximized_to_edges() {
-  local windows="$1" id="$2" maxw="$3"
-  [ -n "$maxw" ] || return 1
-  jq -e --argjson id "$id" --argjson maxw "$maxw" \
-    '.[] | select(.id == $id and .layout.tile_size[0] >= ($maxw - 1))' \
-    >/dev/null <<<"$windows"
-}
-
-is_fullscreen() {
-  local windows="$1" id="$2" maxh="$3"
-  [ -n "$maxh" ] || return 1
-  jq -e --argjson id "$id" --argjson maxh "$maxh" \
-    '.[] | select(.id == $id and .layout.tile_size[1] >= ($maxh - 1))' \
-    >/dev/null <<<"$windows"
-}
-
 process() {
-  local windows workspaces focused_ws output outputs maxw maxh id count
+  local windows workspaces focused_ws id count
   local -a ids
-  windows=$(window_json) || return
+
+  windows=$(niri msg -j windows) || return
   workspaces=$(niri msg -j workspaces) || return
 
   focused_ws=$(jq -r '.[] | select(.is_focused) | .id' <<<"$workspaces" | head -n1)
   [ -n "$focused_ws" ] || return
-
-  output=$(jq -r --argjson ws "$focused_ws" \
-    '.[] | select(.id == $ws) | .output // empty' <<<"$workspaces")
-  outputs=$(niri msg -j outputs) || return
-  maxw=$(jq -r --arg output "$output" \
-    '.[$output].logical.width // empty' <<<"$outputs")
-  maxh=$(jq -r --arg output "$output" \
-    '.[$output].logical.height // empty' <<<"$outputs")
 
   mapfile -t ids < <(jq -r --argjson ws "$focused_ws" \
     '.[] | select(.workspace_id == $ws and (.is_floating | not)) | .id' \
@@ -84,27 +62,14 @@ process() {
 
   if [ "$count" -eq 1 ]; then
     id=${ids[0]}
-    if is_fullscreen "$windows" "$id" "$maxh"; then
-      remove_id "$id"
-    elif ! contains "$id"; then
-      if is_maximized_to_edges "$windows" "$id" "$maxw"; then
-        add "$id"
-      else
-        toggle "$id"
-        add "$id"
-      fi
+    if ! contains "$id"; then
+      set_column_width "$id" "100%"
+      add "$id"
     fi
   elif [ "$count" -gt 1 ]; then
     for id in "${ids[@]}"; do
       if contains "$id"; then
-        if is_fullscreen "$windows" "$id" "$maxh"; then
-          remove_id "$id"
-          continue
-        fi
-        if is_maximized_to_edges "$windows" "$id" "$maxw"; then
-          toggle "$id"
-        fi
-        set_half_width "$id"
+        set_column_width "$id" "50%"
         remove_id "$id"
       fi
     done
