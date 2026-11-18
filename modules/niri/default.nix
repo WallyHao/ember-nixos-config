@@ -24,6 +24,11 @@ in
       portalPackage = null;
 
       settings = {
+        # Keep the dGPU out of niri's DRM enumeration so NVIDIA runtime D3 can
+        # suspend it while idle. PRIME offload still works for clients that
+        # explicitly request the discrete GPU.
+        debug."ignore-drm-device" = "/dev/dri/by-path/pci-0000:01:00.0-render";
+
         input = {
           keyboard.xkb.layout = "us";
           touchpad.natural-scroll = { };
@@ -63,19 +68,57 @@ in
           background-color = c.base00;
         };
 
-        prefer-no-csd = { };
-        screenshot-path = "~/Pictures/Screenshots/Screenshot_%Y-%m-%d_%H-%M-%S.png";
+        # Camera motion only: the critical-damped defaults (damping 1.0,
+        # stiffness 800/1000) stop dead, which reads as stiff. A little
+        # underdamping makes the switch overshoot ~7% and settle back.
+        # Window open/close keep niri's defaults.
+        animations = {
+          workspace-switch.spring._props = {
+            damping-ratio = 0.65;
+            stiffness = 600;
+            epsilon = 0.0001;
+          };
+          horizontal-view-movement.spring._props = {
+            damping-ratio = 0.65;
+            stiffness = 700;
+            epsilon = 0.0001;
+          };
+        };
 
-        # Square windows for every window rule; no exception restores radius.
+        prefer-no-csd = { };
+
         window-rule._children = [
           {
-            geometry-corner-radius = 0;
+            geometry-corner-radius = 10;
             clip-to-geometry = true;
           }
         ];
 
         overview.backdrop-color = c.base00;
         hotkey-overlay.skip-at-startup = { };
+
+        # Keep the panel at its fixed refresh rate on the desktop. On-demand
+        # VRR is enabled only while a game window is visible; the rules opt in
+        # gamescope and Steam game windows. An output name that is not
+        # connected is ignored.
+        _children = [
+          {
+            output = {
+              _args = [ "eDP-1" ];
+              variable-refresh-rate._props = {
+                on-demand = true;
+              };
+            };
+          }
+          {
+            window-rule._children = [
+              {
+                match._props.app-id = "(?i)^(gamescope|steam_app_.*)$";
+                variable-refresh-rate = true;
+              }
+            ];
+          }
+        ];
 
         binds = import ./binds.nix {
           inherit modifier;
