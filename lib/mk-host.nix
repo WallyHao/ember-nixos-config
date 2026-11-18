@@ -39,11 +39,9 @@ let
     inputs.preservation.nixosModules.preservation
     inputs.stylix.nixosModules.stylix
     inputs.nixos-cli.nixosModules.nixos-cli
-    ../modules/system/default.nix
     host.hostModule
     hardwareModule
     identityModule
-    ../modules/system/home-manager.nix
     inputs.home-manager.nixosModules.home-manager
   ]
   ++ persistenceModules
