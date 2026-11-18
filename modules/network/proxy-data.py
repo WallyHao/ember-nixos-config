@@ -30,7 +30,7 @@ def normalize(data):
             raise ValueError("invalid node fields")
         if type(node.get("port")) is not int or not 0 < node["port"] < 65536:
             raise ValueError("invalid node port")
-        if node["name"] in names or node["name"] in ("DIRECT", "REJECT", "NODES", "AUTO"):
+        if node["name"] in names or node["name"] in ("DIRECT", "REJECT", "HK-AUTO", "NODES", "AUTO", "SELECT"):
             raise ValueError("duplicate or reserved node name")
         names.add(node["name"])
     providers = data.get("proxy-providers", {})
@@ -74,19 +74,29 @@ def assemble(base, source, output, state):
     data = normalize(read(source))
     config = read(base)
     providers = {}
+    health_check = config["proxy-providers"]["local"]["health-check"]
     if data["proxies"]:
         write_private(Path(state) / "nodes.yaml", {"proxies": data["proxies"]})
-        providers["local"] = {"type": "file", "path": str(Path(state) / "nodes.yaml")}
+        providers["local"] = {
+            "type": "file",
+            "path": str(Path(state) / "nodes.yaml"),
+            "health-check": health_check,
+        }
     cache = Path(state) / "subscriptions"
     cache.mkdir(mode=0o700, exist_ok=True)
     for name, subscription in data["proxy-providers"].items():
         identity = "source-" + hashlib.sha256(name.encode()).hexdigest()[:16]
-        providers[identity] = subscription | {"path": str(cache / (identity + ".yaml"))}
+        providers[identity] = subscription | {
+            "path": str(cache / (identity + ".yaml")),
+            "health-check": health_check,
+        }
     config["proxy-providers"] = providers
-    # Only Ember's own node group is populated, never a group from the source.
+    # Only Ember's own groups are populated, never a group from the source.
+    provider_names = list(providers)
     for group in config["proxy-groups"]:
-        if group["name"] == "NODES":
-            group["use"] = list(providers)
+        uses = group.get("use")
+        if uses:
+            group["use"] = [name for use in uses for name in (provider_names if use == "local" else [use])]
     write_private(output, config)
 
 

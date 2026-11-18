@@ -11,6 +11,9 @@ let
             self.send_response(204)
             self.end_headers()
         def do_GET(self):
+            if self.path == "/health":
+                self.do_HEAD()
+                return
             self.send_response(200)
             self.end_headers()
             self.wfile.write(self.client_address[0].encode())
@@ -23,6 +26,7 @@ import ./common.nix {
   networkMode = "none";
   extraSystemConfig = {
     ember.proxy.healthCheckUrl = "http://192.0.2.2:8080/health";
+    ember.proxy.directCheckUrls = [ "http://192.0.2.2:8080/health" ];
     environment.systemPackages = [
       pkgs.curl
       pkgs.jq

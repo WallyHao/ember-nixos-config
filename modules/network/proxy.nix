@@ -8,6 +8,17 @@ let
   cfg = config.ember.proxy;
   state = "/var/lib/hearth-proxy";
   yaml = pkgs.formats.yaml { };
+  providerHealthCheck = {
+    enable = true;
+    url = cfg.healthCheckUrl;
+    interval = 60;
+    lazy = false;
+    "expected-status" = "204";
+  };
+  checkUplink = import ../maintenance/check-uplink.nix {
+    inherit lib pkgs;
+    urls = cfg.directCheckUrls;
+  };
   prepareData = ''
     ln -sfn ${pkgs.v2ray-geoip}/share/v2ray/geoip.dat ${state}/GeoIP.dat
     ln -sfn ${pkgs.v2ray-domain-list-community}/share/v2ray/geosite.dat ${state}/GeoSite.dat
@@ -61,19 +72,27 @@ let
     "proxy-providers".local = {
       type = "file";
       path = "${state}/providers.yaml";
-      "health-check" = {
-        enable = true;
-        url = cfg.healthCheckUrl;
-        interval = 60;
-        lazy = true;
-      };
+      "health-check" = providerHealthCheck;
     };
     "proxy-groups" = [
+      {
+        name = "HK-AUTO";
+        type = "url-test";
+        use = [ "local" ];
+        filter = cfg.hongKongNodeFilter;
+        "exclude-type" = "direct";
+        "empty-fallback" = "REJECT";
+        url = cfg.healthCheckUrl;
+        "expected-status" = "204";
+        interval = 60;
+        tolerance = 0;
+      }
       {
         name = "NODES";
         type = "url-test";
         use = [ "local" ];
         url = cfg.healthCheckUrl;
+        "expected-status" = "204";
         interval = 60;
         tolerance = 100;
       }
@@ -81,11 +100,24 @@ let
         name = "AUTO";
         type = "fallback";
         proxies = [
+          "HK-AUTO"
           "NODES"
           "DIRECT"
         ];
         url = cfg.healthCheckUrl;
+        "expected-status" = "204";
+        lazy = false;
         interval = 60;
+      }
+      # Manual override above AUTO: defaults to AUTO, can pin one node or DIRECT.
+      {
+        name = "SELECT";
+        type = "select";
+        use = [ "local" ];
+        proxies = [
+          "AUTO"
+          "DIRECT"
+        ];
       }
     ];
     rules = [
@@ -101,7 +133,7 @@ let
       "IP-CIDR6,fe80::/10,DIRECT,no-resolve"
       "GEOSITE,cn,DIRECT"
       "GEOIP,CN,DIRECT,no-resolve"
-      "MATCH,AUTO"
+      "MATCH,SELECT"
     ];
   };
   python = pkgs.python3.withPackages (p: [ p.pyyaml ]);
@@ -114,6 +146,39 @@ let
       source=${state}/providers.yaml
     fi
     exec ${python}/bin/python3 ${./proxy-data.py} assemble ${proxyConfig} "$source" ${state}/config.yaml ${state}
+  '';
+  control = pkgs.writeShellApplication {
+    name = "ember-proxy-control";
+    text = ''
+      exec ${pkgs.python3}/bin/python3 -EsB ${./proxy-control.py} \
+        ${lib.getExe pkgs.curl} ${lib.getExe' config.systemd.package "systemctl"} ${state} "$@"
+    '';
+  };
+  panel = pkgs.writeShellApplication {
+    name = "ember-proxy-panel";
+    text = ''
+      if [[ "$#" -eq 1 && "$1" == status ]]; then
+        exec ${lib.getExe control} status
+      fi
+      exec ${config.security.wrapperDir}/pkexec --disable-internal-agent ${lib.getExe control} "$@"
+    '';
+  };
+  panelPolicy = pkgs.writeTextDir "share/polkit-1/actions/org.ember.proxy.policy" ''
+    <?xml version="1.0" encoding="UTF-8"?>
+    <!DOCTYPE policyconfig PUBLIC "-//freedesktop//DTD PolicyKit Policy Configuration 1.0//EN"
+      "http://www.freedesktop.org/standards/PolicyKit/1/policyconfig.dtd">
+    <policyconfig>
+      <action id="org.ember.proxy.control">
+        <description>Manage the Ember proxy</description>
+        <message>Administrator authentication is required to manage the Ember proxy</message>
+        <defaults>
+          <allow_any>no</allow_any>
+          <allow_inactive>no</allow_inactive>
+          <allow_active>auth_admin_keep</allow_active>
+        </defaults>
+        <annotate key="org.freedesktop.policykit.exec.path">${lib.getExe control}</annotate>
+      </action>
+    </policyconfig>
   '';
   cli = pkgs.writeShellApplication {
     name = "ember-proxy";
@@ -128,14 +193,8 @@ let
         status)
           systemctl --no-pager status ember-proxy.service || true
           ;;
-        on)
-          sudo test -s ${state}/sources.yaml || sudo test -s ${state}/providers.yaml || { echo 'Import a provider file first.' >&2; exit 1; }
-          sudo rm -f ${state}/disabled
-          sudo systemctl restart ember-proxy.service
-          ;;
-        off)
-          sudo touch ${state}/disabled
-          sudo systemctl stop ember-proxy.service
+        on|off|nodes)
+          exec sudo ${lib.getExe control} "$1"
           ;;
         check)
           sudo ${render}
@@ -172,7 +231,11 @@ let
           rm -f ${state}/disabled
           systemctl restart ember-proxy.service
           ;;
-        *) echo 'Usage: ember-proxy {status|on|off|check|import FILE}' >&2; exit 2 ;;
+        select)
+          test "$#" -eq 2 || { echo 'Usage: ember-proxy select NAME' >&2; exit 2; }
+          exec sudo ${lib.getExe control} select "$2"
+          ;;
+        *) echo 'Usage: ember-proxy {status|on|off|check|import FILE|nodes|select NAME}' >&2; exit 2 ;;
       esac
     '';
   };
@@ -185,14 +248,32 @@ in
     healthCheckUrl = lib.mkOption {
       type = lib.types.str;
       default = "https://www.gstatic.com/generate_204";
-      description = "Connectivity probe for node selection and direct fallback.";
+      description = "URL returning HTTP 204 for Mihomo node selection and fallback.";
+    };
+    directCheckUrls = lib.mkOption {
+      type = lib.types.nonEmptyListOf lib.types.str;
+      default = [
+        "https://connect.rom.miui.com/generate_204"
+        "https://connectivitycheck.platform.hicloud.com/generate_204"
+      ];
+      description = "Direct uplink probes before starting Mihomo. One HTTP 204 is sufficient.";
+    };
+    hongKongNodeFilter = lib.mkOption {
+      type = lib.types.str;
+      default = "(?i)🇭🇰|香港|Hong[ _-]*Kong|(?:^|[^a-z])HK(?:[^a-z]|$)";
+      description = "Mihomo regular expression identifying Hong Kong nodes by name.";
     };
   };
   config = lib.mkIf cfg.enable {
     environment.systemPackages = [
       cli
       (pkgs.writeShellScriptBin "hearth-proxy" ''exec ${cli}/bin/ember-proxy "$@"'')
-    ];
+    ]
+    ++ lib.optional config.ember.desktop.enable panelPolicy;
+    security.polkit.enablePkexecWrapper = lib.mkIf config.ember.desktop.enable true;
+    environment.etc."ember/proxy-panel" = lib.mkIf config.ember.desktop.enable {
+      source = lib.getExe panel;
+    };
     environment.etc."ember/mihomo.yaml".source = proxyConfig;
     boot.kernelModules = [ "tun" ];
     systemd.tmpfiles.rules = [ "d ${state} 0700 root root -" ];
@@ -202,12 +283,26 @@ in
         mode = "0700";
       }
     ];
+    systemd.timers.ember-proxy = {
+      description = "Retry automatic proxy startup after the uplink becomes usable";
+      wantedBy = [ "timers.target" ];
+      timerConfig = {
+        OnBootSec = "2s";
+        OnCalendar = "*:*:0/30";
+        AccuracySec = "1s";
+      };
+    };
     systemd.services.ember-proxy = {
       description = "Ember automatic proxy (Mihomo TUN)";
       aliases = [ "hearth-proxy.service" ];
-      wantedBy = [ "multi-user.target" ];
-      wants = [ "NetworkManager.service" ];
-      after = [ "NetworkManager.service" ];
+      wants = [
+        "NetworkManager.service"
+        "systemd-resolved.service"
+      ];
+      after = [
+        "NetworkManager.service"
+        "systemd-resolved.service"
+      ];
       unitConfig = {
         ConditionPathExists = [
           "|${state}/providers.yaml"
@@ -223,6 +318,7 @@ in
         ${render}
       '';
       serviceConfig = {
+        ExecCondition = checkUplink;
         ExecStart = "${pkgs.mihomo}/bin/mihomo -d ${state} -f ${state}/config.yaml";
         Restart = "on-failure";
         RestartSec = 5;
