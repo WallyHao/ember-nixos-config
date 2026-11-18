@@ -139,7 +139,7 @@ let
         num-disks = builtins.length (lib.attrNames testConfigBooted.disko.devices.disk);
 
         installed-system =
-          { config, ... }:
+          { ... }:
           {
             imports = [
               (lib.optionalAttrs (testMode == "direct") tsp-config)
