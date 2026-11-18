@@ -1,96 +1,105 @@
 # Ember
 
-NixOS configuration for wallyhao's laptop: Niri, Waybar, Fuzzel, Mako, Foot,
-Fcitx5/Rime, and a separately managed CLI/oh-my-pi/Zen Browser user profile. Emberlight is the
-single Stylix colour source. The five desktop appearance components follow the
-current Folio layout and geometry, with Emberlight colours.
+Ember is my personal NixOS and Home Manager configuration for one laptop: a Lenovo
+Legion Y7000 IRX9 running [Niri] on Wayland. It binds real hardware, storage and
+account data, so it is **not a general-purpose template**. Read it as a reference and
+take the parts that fit your own machine.
 
-## Identity
+- **System** — `nixosConfigurations.ember`, hostname `ember`, `stateVersion = "26.11"`.
+  A tmpfs root, Btrfs `@nix` / `@persist` subvolumes, `disko` for the layout and
+  `preservation` for state that must survive reboots.
+- **Desktop** — Niri with Waybar, Fuzzel, Mako, Foot and Fcitx5/Rime. Stylix resolves
+  the Emberlight palette; every managed component reads that one source.
+- **User software** — an independently locked Nix profile for CLI tools, OMP and Zen
+  Browser. Updating it does not rebuild the system or Home Manager.
 
-- Target: `nixosConfigurations.ember`, hostname `ember`, x86_64-linux.
-- User: `wallyhao`, UID 1000, `/home/wallyhao`. Existing passwords/stateVersion stay.
-- greetd/tuigreet password login, rescue tty2, GNOME Keyring/PAM preserved.
-- Existing internal-disk layout and HEARTH_* labels are deliberately unchanged.
-- Noctalia is no longer configured. Old private data is retained for rollback.
-- `nixosConfigurations.hearth` is a temporary compatibility alias; the system
-  built by either flake output is Ember.
+## Architecture
+
+| Path | Responsibility |
+| --- | --- |
+| `inventory/` | Host, user, storage and module paths, with structural validation |
+| `hosts/ember/` | Hardware, power, storage declaration and host policy |
+| `suites/nixos/` | Base, desktop and laptop compositions |
+| `modules/` | System, network, session, appearance, desktop, Niri, terminal, NixVim and program modules |
+| `users/wallyhao/` | Home Manager entry, preferences and persistence whitelist |
+| `software/` | Separate flake and lock for the user profile |
+| `tests/` | Evaluation contracts, fixtures and QEMU VM checks |
+
+`lib/mk-host.nix` assembles the same modules for the real host, `system-preview` and
+the VM tests. `nixosConfigurations.ember` is exported only when the target disk,
+layout module and confirmation are all present; otherwise only the portable
+`nixosModules.emberLaptop` and preview outputs exist.
+
+## Desktop
+
+| Area | Choice |
+| --- | --- |
+| Session | greetd + tuigreet, `niri-session`, password-protected tty2 rescue |
+| Bar, launcher, notifications | Waybar, Fuzzel, Mako |
+| Terminal and shell | Foot, Zsh, p10k, tmux, Atuin (local history only) |
+| Editor | NixVim with LSP servers and managed themes |
+| Input method | Fcitx5 + Rime, configured by the system session |
+| Browser and AI tools | Zen Browser and OMP, installed by the user profile |
+| Files and images | Yazi, udiskie auto-mount, imv, Satty screenshots |
+| Network | NetworkManager + systemd-resolved, Mihomo proxy, `file-drop` |
+| Audio | PipeWire and WirePlumber |
+| Lock and idle | swaylock, swayidle and the `ember-lock` user service |
+
+The gaming stack (Steam, GE-Proton, GameMode, Gamescope, MangoHud and the NVIDIA
+offload wrapper) is opt-in and currently off in `hosts/ember/default.nix`.
+
+## Theme
+
+Emberlight is a dark Base16 scheme defined once in
+[`assets/themes/emberlight.json`](assets/themes/emberlight.json). Stylix normalises it,
+and Waybar, Fuzzel, Mako, Foot, NixVim, swaylock and GTK derive their colours from the
+resolved palette. Fonts are LXGW WenKai Mono GB at size 18.
 
 ## Daily commands
 
-Run inside the persistent Ember repository, without prefixing just with sudo:
+Run these inside the repository as `wallyhao`; no command takes positional arguments.
 
-```sh
-just          # list the commands
-just apps     # user software: install (default), list, history, rollback, build
-just vpn      # Mihomo: status (default), on, off, check, import a provider file
-just check    # lints, CLI tests, path/secret scans, flake evaluation
-just build    # build the system-preview toplevel (never installs or activates)
-just vm       # VM checks: all of them, or one selected from the menu
-just format   # rewrite .nix files with nixfmt
-```
+| Command | Purpose |
+| --- | --- |
+| `just` | List the available commands |
+| `just check` | Format, lint, path/secret scans, CLI tests and flake evaluation |
+| `just build` | Build the `system-preview` toplevel; never installs or activates |
+| `just vm` | Build all VM checks, or one selected from the menu |
+| `just format` | Rewrite `.nix` files with nixfmt |
+| `just apps` | Install, list, roll back or build the declared user software |
+| `just vpn` | Mihomo status, on/off, node selection and provider import |
 
-No command takes positional arguments; the actions that need input (`import` a
-provider file, `rollback` to a generation) prompt for it.
+`scripts/ember` provides the non-interactive backend used by the menu and tests. The
+user profile lives at `~/.local/state/nix/profiles/profile`; edit
+[`software/selection/user-packages.nix`](software/selection/user-packages.nix) and run
+`just apps` instead of calling `nix profile install` by hand.
 
-Select applications in `software/selection/user-packages.nix`, then run `just apps`
-(install is the default menu choice). Native profile state remains
-`~/.local/state/nix/profiles/profile`; the old cached Hearth bundle and old
-local flake origin have bounded migration compatibility.
+## Deployment
 
-## Gaming
+The configuration has been built and exercised in VMs, but it has **not** been
+installed or activated on the host yet. `system-preview` uses fixture storage and never
+selects the internal disk. Proxy subscriptions, saved network connections and other
+private runtime data are not part of this repository.
 
-The gaming stack is opt-in and currently off: `hosts/ember/default.nix` sets
-`ember.gaming.enable = false`. When enabled, Steam, GE-Proton, GameMode,
-Gamescope, MangoHud, `xwayland-satellite`, and the `nvidia-offload` wrapper are
-system components owned by `modules/gaming.nix`.
-The Steam library lives on `/persist`. Hybrid-GPU launch options, Proton
-choices, VRR, and the compatibility limits are documented in
-[the gaming notes](docs/gaming.md). Use `nvidia-offload steam` for a whole
-session; the guide has the per-game offload launch option.
+Do not deploy this flake directly onto another machine. Start from `inventory/`,
+`hosts/ember/storage-spec.nix`, `hosts/ember/hardware.nix` and the account setup, then
+follow [`docs/deployment.md`](docs/deployment.md).
 
-## Development toolchains
+## Checks
 
-Python and JavaScript/TypeScript are owned by their language package managers;
-Nix only supplies the runtime and the manager. Both are declared in
-`software/package-set.nix` (`devNames`), so `just apps` installs and upgrades
-them and no manual `nix profile install` is needed.
-
-| Language | From Nix | Project dependencies |
-| --- | --- | --- |
-| Python | `uv` | `pyproject.toml` + `uv.lock`; interpreters via `uv python install` |
-| JS/TS | `nodejs_24`, `pnpm` | `package.json` + `pnpm-lock.yaml` |
-
-`uv` owns Python for project work: `uv run`, `uv tool install`, and
-`uv python install` are the only entry points. `programs.nix-ld` is enabled so
-the uv-downloaded CPython build can start on NixOS. The `python3` in the Ember
-devShell exists solely for `scripts/ember`; it is not part of the user
-environment. uv interpreters/tools/cache and the pnpm store are preserved under
-`/persist` by `users/wallyhao/persistence.nix`. C/C++ tooling is intentionally
-not installed.
-
-OMP discovers skills as `~/Documents/skills/<name>/SKILL.md`;
-`modules/programs/omp.nix` registers that root on every Home Manager activation
-without dropping other custom roots. Discovery runs at OMP startup, so a newly
-added skill appears in the next session.
-
-## Migrating private source data
-
-`./scripts/ember migrate-folio-data` runs on Folio with the reviewed internal
-filesystems mounted below `/mnt`. It requests local sudo, extracts
-nodes/subscriptions and copies saved NM connections to protected target state.
-It does not copy Folio routing/DNS policy or change Folio services. Never paste
-private sources in chat.
-
-## Deployment status
-
-The source is buildable and the desktop has been exercised in VMs; the host has
-not been installed or activated, and the private Folio data has not been copied
-yet.
+`just check` runs nixfmt, deadnix, actionlint, ShellCheck, the CLI suite, repository
+scans and flake evaluation. CI repeats those checks and builds the system preview plus
+the storage, desktop and refresh checks on every push. The VM suite covers accounts,
+persistence, offline boot, desktop, user environment, connectivity and `file-drop`; it
+runs on manual dispatch.
 
 ## Documentation
 
-- [architecture](docs/architecture.md): module layering, evaluation chain, flake outputs, state model.
-- [operations](docs/operations.md): login, boot menu, network and proxy, desktop session, storage, maintenance.
-- [gaming](docs/gaming.md): optional Steam/Proton stack and hybrid graphics.
-- [hardware](docs/hardware.md): observed devices, PRIME bus IDs, nixos-facter report.
-- [deployment](docs/deployment.md): private-data copy and installing onto the internal disk.
+- [`docs/architecture.md`](docs/architecture.md) — layering, evaluation chain, outputs and state model.
+- [`docs/operations.md`](docs/operations.md) — login, boot menu, network, proxy, session and storage.
+- [`docs/hardware.md`](docs/hardware.md) — observed devices, PRIME bus IDs and disk layout.
+- [`docs/deployment.md`](docs/deployment.md) — private-data copy and installation.
+- [`docs/gaming.md`](docs/gaming.md) — optional Steam/Proton stack and hybrid graphics.
+- [`modules/README.md`](modules/README.md), [`software/README.md`](software/README.md) — module and profile conventions.
+
+[Niri]: https://github.com/YaLTeR/niri
