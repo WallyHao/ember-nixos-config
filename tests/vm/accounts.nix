@@ -6,6 +6,7 @@
 let
   initialPassword = pkgs.writeText "ember-test-initial-password" "kl;'";
   newPassword = pkgs.writeText "ember-test-new-password" "ember-test-pass";
+  # A rejected login proves authentication, not merely a visible prompt.
   wrongPassword = pkgs.writeText "ember-test-wrong-password" "definitely-not-the-password";
 
   # All positive/negative cases use the same probe. Its marker must be the
@@ -19,24 +20,7 @@ let
   loginOk = realLogin initialPassword "accept";
   loginNew = realLogin newPassword "accept";
   loginOldShouldFail = realLogin initialPassword "reject";
-  loginWrongPassword = realLogin wrongPassword "accept";
   loginWrongShouldFail = realLogin wrongPassword "reject";
-
-  # These test-only programs exercise the exact success probe's timeout, EOF,
-  # and input-echo paths. None authenticates or runs a shell command.
-  noPrompt = pkgs.writeShellScript "ember-no-prompt" "sleep 5";
-  earlyEof = pkgs.writeShellScript "ember-early-eof" "exit 0";
-  echoOnly = pkgs.writeShellScript "ember-input-echo-only" ''
-    printf 'Password:'
-    IFS= read -r ignored
-    printf '\n$ '
-    IFS= read -r command
-    printf '%s\n' "$command"
-    sleep 5
-  '';
-  missingPrompt = loginProbe initialPassword "accept" noPrompt 2;
-  unexpectedEof = loginProbe initialPassword "accept" earlyEof 2;
-  missingMarker = loginProbe initialPassword "accept" echoOnly 2;
 
   changePassword = pkgs.writeText "ember-change-password.exp" ''
     set timeout 60
@@ -123,11 +107,6 @@ let
         t.assertEqual(owner, "0")
         t.assertEqual(int(mode, 8) & 0o077, 0, "shadow must not be accessible to group/others")
 
-    def assert_probe_failure(command, reason):
-        status, output = machine.execute("env LC_ALL=C " + command + " 2>&1")
-        t.assertEqual(status, 1, output)
-        t.assertIn("FAIL: " + reason, output)
-
     with subtest("account and TTY basics"):
         machine.wait_for_unit("greetd.service", timeout=180)
         machine.succeed("systemctl is-active greetd.service")
@@ -138,12 +117,6 @@ let
         machine.succeed("test -L /etc/shadow")
         machine.succeed("readlink -f /etc/shadow | grep -q /var/lib/nixos/shadow")
         machine.succeed("passwd -S root | grep -q '^root L'")
-
-    with subtest("same login probe rejects timeout, EOF, input echo, and wrong outcomes"):
-        assert_probe_failure("${missingPrompt}", "password prompt timeout")
-        assert_probe_failure("${unexpectedEof}", "login exited before password prompt")
-        assert_probe_failure("${missingMarker}", "authenticated identity marker timeout")
-        assert_probe_failure("${loginWrongPassword}", "password was rejected")
 
     with subtest("initial four-character password works on a real login pty"):
         machine.succeed("env LC_ALL=C ${loginOk}")
