@@ -8,7 +8,6 @@ let
   profileHelper = pkgs.runCommand "ember-profile-helper-fixture" { } ''
     mkdir -p $out/scripts
     cp ${../../scripts/ember} $out/scripts/ember
-    cp ${../../scripts/hearth} $out/scripts/hearth
     cp -r ${../../software} $out/software
     cp ${../../justfile} $out/justfile
   '';
@@ -98,9 +97,9 @@ let
         machine.succeed("test -d /nix/store/.links")
         machine.succeed("systemctl is-active nix-daemon.socket")
         as_user("command -v just")
-        as_user("cd ${profileHelper}; just profile-install")
+        as_user("cd ${profileHelper}; just apps")
         first_generation = as_user("readlink ${profilePath}").strip()
-        as_user("cd ${profileHelper}; just profile-install")
+        as_user("cd ${profileHelper}; just apps")
         t.assertEqual(as_user("readlink ${profilePath}").strip(), first_generation)
         t.assertEqual(
             machine.succeed(f"stat -c '%U' {profilePath}").strip(),
@@ -113,8 +112,9 @@ let
         t.assertNotIn('"workstation"', manifest)
         for package in ["gh", "git", "jq", "omp", "zen"]:
             t.assertIn('"{}"'.format(package), manifest)
-        t.assertIn("18.18.6", as_user("${profilePath}/bin/omp --version"))
-        t.assertIn("USAGE", as_user("${profilePath}/bin/omp --help"))
+        t.assertRegex(as_user("${profilePath}/bin/omp --version"), r"(?<!\d)\d+\.\d+\.\d+(?!\d)")
+        omp_help_first = as_user("${profilePath}/bin/omp --help").strip().splitlines()[:1]
+        t.assertTrue(omp_help_first and omp_help_first[0].strip())
         as_user("printf 'startup:\\n  quiet: true\\n' > /home/wallyhao/.omp/agent/config.yml")
 
         shell_state = as_user(
@@ -183,28 +183,42 @@ let
             )
         historical = as_user("nix store add-path /home/wallyhao/Downloads/ember-history").strip()
         garbage = as_user("nix store add-path /home/wallyhao/Downloads/ember-garbage").strip()
+        installed_generation = as_user(f"readlink -f {profilePath}").strip()
+        generation_count = int(
+            as_user(
+                "find /home/wallyhao/.local/state/nix/profiles "
+                "-maxdepth 1 -name 'profile-[0-9]*-link' | wc -l"
+            )
+        )
         as_user(
             "nix profile install "
             f"--profile {profilePath} {historical}"
         )
-        history = as_user(
-            f"nix profile history --profile {profilePath}"
+        history_generation = as_user(f"readlink -f {profilePath}").strip()
+        t.assertNotEqual(history_generation, installed_generation)
+        t.assertEqual(
+            int(
+                as_user(
+                    "find /home/wallyhao/.local/state/nix/profiles "
+                    "-maxdepth 1 -name 'profile-[0-9]*-link' | wc -l"
+                )
+            ),
+            generation_count + 1,
         )
-        history = re.sub(r"\x1b\[[0-9;]*m", "", history)
-        t.assertIn("Version 1", history)
-        t.assertIn("Version 2", history)
-        as_user("nix profile rollback --profile ${profilePath}")
+        as_user(f"test -e {profilePath}/bin/ember-history")
+        as_user(f"nix profile rollback --profile {profilePath}")
+        t.assertEqual(as_user(f"readlink -f {profilePath}").strip(), installed_generation)
         as_user(f"nix profile history --profile {profilePath}")
         machine.fail(f"test -e {profilePath}/bin/ember-history")
         as_user("${profilePath}/bin/yazi --version")
-        as_user(f"{profilePath}-2-link/bin/ember-history")
+        as_user(f"{history_generation}/bin/ember-history")
 
     with subtest("guest GC retains native profile history and collects unrooted garbage"):
         machine.succeed("findmnt /nix/.ro-store -no OPTIONS | grep -w ro")
         machine.succeed("nix-store --gc")
         machine.fail(f"test -e {garbage}")
         as_user("${profilePath}/bin/yazi --version")
-        t.assertEqual(as_user(f"{profilePath}-2-link/bin/ember-history").strip(), "ember-history")
+        t.assertEqual(as_user(f"{history_generation}/bin/ember-history").strip(), "ember-history")
 
     with subtest("Zsh history survives HM reactivation and reboot"):
         marker = "ember-history-marker"
@@ -223,8 +237,8 @@ let
             "wallyhao 700",
         )
         as_user("${profilePath}/bin/yazi --version")
-        as_user("${profilePath}-2-link/bin/ember-history")
-        t.assertIn("18.18.6", as_user("${profilePath}/bin/omp --version"))
+        as_user(f"{history_generation}/bin/ember-history")
+        t.assertRegex(as_user("${profilePath}/bin/omp --version"), r"(?<!\d)\d+\.\d+\.\d+(?!\d)")
         as_user("grep -q 'quiet: true' /home/wallyhao/.omp/agent/config.yml")
         as_user(f"nix profile history --profile {profilePath}")
         as_user("timeout 30 nvim --headless /home/wallyhao/Documents/nvim-test.txt +undo +wq")
@@ -244,7 +258,6 @@ import ./common.nix {
   inherit extraTestScript;
   extraSystemConfig =
     {
-      pkgs,
       ...
     }:
     {

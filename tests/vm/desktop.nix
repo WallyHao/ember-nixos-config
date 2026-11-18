@@ -47,6 +47,18 @@ let
             print(machine.execute(base_user + "journalctl --user -b --no-pager -n 100")[1])
             raise
     machine.fail("pgrep -u wallyhao -x noctalia")
+    with subtest("the desktop session runs without a NIC and performs no git work"):
+        machine.fail("test -e /sys/class/net/eth0")
+        machine.succeed("test -e /sys/class/net/lo")
+        machine.wait_until_succeeds(
+            base_user + "systemctl --user is-active graphical-session.target", timeout=60
+        )
+        machine.fail("pgrep -af 'git clone'")
+        machine.fail("pgrep -af 'git.*ember'")
+        logs = machine.succeed("journalctl -b --no-pager")
+        t.assertNotIn("git clone", logs)
+        t.assertNotIn("browse fetch", logs)
+        t.assertNotIn("cannot prepare source cache", logs)
     display = machine.succeed(base_user + "find /run/user/1000 -maxdepth 1 -type s -name 'wayland-*' -printf '%f\\n'").splitlines()[0]
     socket = machine.succeed(base_user + "sh -c \"find /run/user/1000 -maxdepth 1 -type s -name 'niri.*.sock' | head -n1\"").strip()
     user = base_user + f"WAYLAND_DISPLAY={display} NIRI_SOCKET={socket} "
@@ -56,6 +68,25 @@ let
 
     def wait_user(command, timeout=60):
         machine.wait_until_succeeds(user + "sh -c " + shlex.quote(command), timeout=timeout)
+
+    with subtest("quick settings is preloaded hidden and login muting does not block the session"):
+        wait_user("systemctl --user is-active ember-quick-settings.service", timeout=30)
+        visible = "busctl --user get-property com.github.wifi_manager.Daemon /com/github/wifi_manager/Daemon com.github.wifi_manager.Daemon Visible"
+        t.assertEqual(as_user(visible).strip(), "b false")
+        pid = as_user("systemctl --user show ember-quick-settings.service -p MainPID --value")
+        session_ready = int(as_user("systemctl --user show graphical-session.target -p ActiveEnterTimestampMonotonic --value"))
+        mute_started = int(as_user("systemctl --user show ember-mute-at-login.service -p ExecMainStartTimestampMonotonic --value"))
+        t.assertGreater(session_ready, 0)
+        t.assertGreaterEqual(mute_started, session_ready)
+        machine.send_key("meta_l-c")
+        wait_user(visible + " | grep -qx 'b true'", timeout=5)
+        t.assertEqual(pid, as_user("systemctl --user show ember-quick-settings.service -p MainPID --value"))
+        # Visible flips before GTK maps the layer surface and receives keyboard
+        # focus. Wait for an actual frame before sending Escape (software GPU).
+        machine.wait_for_text("(?i)Bluetooth", timeout=30)
+        machine.screenshot("ember-quick-settings-preloaded")
+        machine.send_key("esc")
+        wait_user(visible + " | grep -qx 'b false'", timeout=5)
 
     def popup(key):
         machine.send_key(key)
@@ -67,9 +98,9 @@ let
         machine.wait_until_fails("pgrep -u wallyhao -x fuzzel", timeout=60)
 
     with subtest("native profile install is offline and idempotent"):
-        as_user("cd ${profileHelper}; just profile install")
+        as_user("cd ${profileHelper}; just apps")
         generation = as_user("readlink /home/wallyhao/.local/state/nix/profiles/profile")
-        as_user("cd ${profileHelper}; just profile install")
+        as_user("cd ${profileHelper}; just apps")
         t.assertEqual(generation, as_user("readlink /home/wallyhao/.local/state/nix/profiles/profile"))
         as_user("/home/wallyhao/.local/state/nix/profiles/profile/bin/omp --version")
         manifest = as_user("nix profile list --profile /home/wallyhao/.local/state/nix/profiles/profile --json")
