@@ -66,13 +66,28 @@ in
     _props.repeat = false;
     center-column = { };
   };
-  "${modifier}+S" = bind "Capture full screen" {
+  # Satty annotates the region; without the profile packages (or without
+  # satty) the same region is saved to the persistent Screenshots directory.
+  Print = bind "Capture region and annotate with Satty" {
     _props.repeat = false;
-    screenshot-screen._props.show-pointer = false;
-  };
-  "${modifier}+Shift+S" = bind "Capture screen region" {
-    _props.repeat = false;
-    screenshot._props.show-pointer = false;
+    spawn = [
+      "sh"
+      "-c"
+      ''
+        set -eu
+        if ! command -v grim >/dev/null 2>&1 || ! command -v slurp >/dev/null 2>&1; then
+          printf '%s\n' 'Screenshot tools are not installed yet. Run: just apps' >&2
+          exit 0
+        fi
+        if command -v satty >/dev/null 2>&1; then
+          grim -g "$(slurp)" - | satty --filename -
+        else
+          dir="$HOME/Pictures/Screenshots"
+          mkdir -p -- "$dir"
+          grim -g "$(slurp)" "$dir/$(date +%Y-%m-%d_%H-%M-%S).png"
+        fi
+      ''
+    ];
   };
 
   "${modifier}+Left" = bind "Focus column left" { focus-column-left = { }; };
