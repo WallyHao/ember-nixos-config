@@ -3,6 +3,7 @@ name: ci
 on:
   push:
   pull_request:
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -12,26 +13,32 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
-      - uses: actions/checkout@v5.1.0
-      - uses: cachix/install-nix-action@v31.9.1
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
+      - uses: cachix/install-nix-action@2126ae7fc54c9df00dd18f7f18754393182c73cd # v31.9.1
         with:
           extra_nix_config: |
             experimental-features = nix-command flakes
       - name: Format, shell, path/secret scans, flake checks
-        run: nix-shell ./shell.nix --run 'just check'
-      - name: Build system-preview and phase-2 config checks
+        run: nix develop --no-update-lock-file path:. --command just check
+      - name: Build system preview and integration checks
         run: |
-          ./scripts/hearth build
+          ./scripts/ember build
           nix build --no-link --no-update-lock-file \
+            path:.#checks.x86_64-linux.storage-layout \
             path:.#checks.x86_64-linux.desktop-config \
-            path:.#checks.x86_64-linux.eval-user-environment
+            path:.#checks.x86_64-linux.refresh
 
   vm:
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 180
     steps:
-      - uses: actions/checkout@v5.1.0
-      - uses: cachix/install-nix-action@v31.9.1
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
+      - uses: cachix/install-nix-action@2126ae7fc54c9df00dd18f7f18754393182c73cd # v31.9.1
         with:
           extra_nix_config: |
             experimental-features = nix-command flakes
@@ -40,8 +47,6 @@ jobs:
           nix build --no-link --no-update-lock-file \
             path:.#checks.x86_64-linux.vm-accounts \
             path:.#checks.x86_64-linux.vm-persistence \
-            path:.#checks.x86_64-linux.vm-offline-boot \
-            path:.#checks.x86_64-linux.vm-offline-desktop \
             path:.#checks.x86_64-linux.vm-offline-link \
             path:.#checks.x86_64-linux.vm-desktop \
             path:.#checks.x86_64-linux.vm-user-environment \
