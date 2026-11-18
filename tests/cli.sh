@@ -220,26 +220,82 @@ if grep -Eq 'profile (add|upgrade|remove)' "$calls"; then
   exit 1
 fi
 
-# Exercise Just's positional forwarding too: paths with spaces stay one arg.
+# The public surface is argument-free recipes: the just layer prompts, and the
+# backend receives exactly one non-interactive action.
 mkdir -p "$repo/scripts"
 cat >"$repo/scripts/ember" <<'MOCK'
 #!/usr/bin/env bash
 printf '%s\0' "$@" > "${EMBER_TEST_ARGUMENTS:?}"
 MOCK
 chmod +x "$repo/scripts/ember"
-export EMBER_TEST_ARGUMENTS="$temporary/just-args"
-just --justfile "$project/justfile" --working-directory "$repo" proxy import 'a directory/provider.yaml'
-mapfile -d '' -t forwarded <"$EMBER_TEST_ARGUMENTS"
-[[ "${#forwarded[@]}" == 3 && "${forwarded[0]}" == proxy && "${forwarded[2]}" == 'a directory/provider.yaml' ]]
-just --justfile "$project/justfile" --working-directory "$repo" profile install
-mapfile -d '' -t forwarded <"$EMBER_TEST_ARGUMENTS"
-[[ "${#forwarded[@]}" == 2 && "${forwarded[1]}" == install ]]
+export EMBER_TEST_ARGUMENTS="$temporary/cli-arguments"
+just_cli() { just --justfile "$project/justfile" --working-directory "$repo" "$@"; }
+backend_args() { mapfile -d '' -t forwarded <"$EMBER_TEST_ARGUMENTS"; }
+expect_cli_failure() {
+  if "$@" >/dev/null 2>&1; then
+    echo "Expected CLI failure: $*" >&2
+    exit 1
+  fi
+}
+
+# The listing stays small and every former verb is reachable from a menu.
+just_cli </dev/null >/dev/null
+
+# apps: Enter installs, digits select list/history, rollback prompts for a target.
+just_cli apps </dev/null >/dev/null
+backend_args
+[[ "${#forwarded[@]}" == 2 && "${forwarded[0]}" == profile && "${forwarded[1]}" == install ]]
+printf '2\n' | just_cli apps >/dev/null
+backend_args
+[[ "${#forwarded[@]}" == 2 && "${forwarded[1]}" == list ]]
+printf '3\n' | just_cli apps >/dev/null
+backend_args
+[[ "${#forwarded[@]}" == 2 && "${forwarded[1]}" == history ]]
+printf '5\n' | just_cli apps >/dev/null
+backend_args
+[[ "${#forwarded[@]}" == 1 && "${forwarded[0]}" == software-build ]]
+printf '4\n7\n' | just_cli apps >/dev/null
+backend_args
+[[ "${#forwarded[@]}" == 3 && "${forwarded[1]}" == rollback && "${forwarded[2]}" == 7 ]]
+printf '4\n\n' | just_cli apps >/dev/null
+backend_args
+[[ "${#forwarded[@]}" == 2 && "${forwarded[1]}" == rollback ]]
+
+# vpn: a provider path with spaces stays one argument; a blank path is refused.
+just_cli vpn </dev/null >/dev/null
+backend_args
+[[ "${#forwarded[@]}" == 2 && "${forwarded[0]}" == proxy && "${forwarded[1]}" == status ]]
+printf '5\na directory/provider.yaml\n' | just_cli vpn >/dev/null
+backend_args
+[[ "${#forwarded[@]}" == 3 && "${forwarded[1]}" == import && "${forwarded[2]}" == 'a directory/provider.yaml' ]]
+printf '5\n\n' | expect_cli_failure just_cli vpn
+printf '9\n' | expect_cli_failure just_cli apps
+printf '9\n' | expect_cli_failure just_cli vpn
+printf '9\n' | expect_cli_failure just_cli vm
+expect_cli_failure just_cli apps install </dev/null
+expect_cli_failure just_cli vpn status </dev/null
+
+# Every recipe body must parse as bash.
+awk '
+  /^[a-zA-Z][a-zA-Z0-9_-]*:/ { recipe = 1; next }
+  recipe && /^    / { sub(/^    /, ""); print; next }
+  { recipe = 0 }
+' "$project/justfile" >"$temporary/recipe-bodies.sh"
+bash -n "$temporary/recipe-bodies.sh"
 
 proxy_command import 'a directory/provider.yaml'
 mapfile -d '' -t forwarded <"$temporary/proxy-args"
 [[ "${#forwarded[@]}" == 2 && "${forwarded[1]}" == 'a directory/provider.yaml' ]]
+proxy_command nodes
+mapfile -d '' -t forwarded <"$temporary/proxy-args"
+[[ "${#forwarded[@]}" == 1 && "${forwarded[0]}" == nodes ]]
+proxy_command select 'Node One'
+mapfile -d '' -t forwarded <"$temporary/proxy-args"
+[[ "${#forwarded[@]}" == 2 && "${forwarded[1]}" == 'Node One' ]]
+expect_failure proxy_command select >/dev/null 2>&1
+expect_failure proxy_command nodes extra >/dev/null 2>&1
 expect_failure proxy_command off extra >/dev/null 2>&1
 expect_failure profile_command install extra >/dev/null 2>&1
 expect_failure profile_command rollback invalid >/dev/null 2>&1
 
-printf 'PASS: profile reconciliation, manual-entry preservation, migration, idempotence, failure safety and forwarding\n'
+printf 'PASS: profile reconciliation, manual-entry preservation, migration, idempotence, failure safety and argument-free CLI menus\n'

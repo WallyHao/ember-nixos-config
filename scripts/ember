@@ -6,7 +6,7 @@ repo=$(pwd -P)
 
 usage() {
   cat <<'EOF'
-usage: scripts/ember <info|check|build|software-build|proxy|profile|profile-install|migrate-folio-data|scan-selftest>
+usage: scripts/ember <info|check|build|software-build|proxy|profile|migrate-folio-data|scan-selftest>
 
   info          show target identity and storage/deployment state
   check         path/secret scans, self-tests, flake eval, and no-build checks
@@ -15,10 +15,11 @@ usage: scripts/ember <info|check|build|software-build|proxy|profile|profile-inst
   software-build build every declared user-profile package
   proxy [status|on|off|check|import FILE] manage Mihomo
   profile [install|list|history|rollback [N]] manage all declared user software
-  profile-install compatibility alias for profile install
   migrate-folio-data copy private node/subscription/Wi-Fi data to mounted /mnt
 
-switch, test, boot, install, and activate are not performed by this wrapper.
+This wrapper is non-interactive; `just apps` and `just vpn` prompt for the
+actions that need input. switch, test, boot, install, and activate are not
+performed by this wrapper.
 EOF
 }
 
@@ -180,7 +181,7 @@ profile_reconcile() {
     elif [ "$kind" = managed ]; then
       name=${attr#packages.x86_64-linux.}
       if [ -n "${managed_key[$name]:-}" ]; then
-        echo "Multiple managed profile entries found for $name; inspect just profile list." >&2
+        echo "Multiple managed profile entries found for $name; inspect the entries with 'just apps'." >&2
         conflict=1
       elif [ -n "${desired_lookup[$name]:-}" ]; then
         managed_key[$name]=$key
@@ -242,23 +243,29 @@ profile_reconcile() {
 proxy_command() {
   local action=${1:-status}
   case "$action" in
-    status | on | off | check)
+    status | on | off | check | nodes)
       if [ "$#" -gt 1 ]; then
-        echo "Usage: just proxy $action" >&2
+        echo "Usage: scripts/ember proxy $action" >&2
+        return 2
+      fi
+      ;;
+    select)
+      if [ "$#" -ne 2 ]; then
+        echo 'Usage: scripts/ember proxy select NAME' >&2
         return 2
       fi
       ;;
     import)
       if [ "$#" -ne 2 ]; then
-        echo 'Usage: just proxy import /path/to/provider.yaml' >&2
+        echo 'Usage: scripts/ember proxy import /path/to/provider.yaml' >&2
         return 2
       fi
       ;;
     help | --help | -h)
-      echo 'Usage: just proxy [status|on|off|check|import FILE]'
+      echo 'Usage: scripts/ember proxy <status|on|off|check|import FILE|nodes|select NAME>'
       return
       ;;
-    *) echo 'Usage: just proxy [status|on|off|check|import FILE]' >&2; return 2 ;;
+    *) echo 'Usage: scripts/ember proxy <status|on|off|check|import FILE|nodes|select NAME>' >&2; return 2 ;;
   esac
   require_ember_user || return
   if command -v ember-proxy >/dev/null 2>&1; then
@@ -294,22 +301,22 @@ profile_command() {
   local action=${1:-install}
   case "$action" in
     help | --help | -h)
-      echo 'Usage: just profile [install|list|history|rollback [GENERATION]]'
+      echo 'Usage: scripts/ember profile <install|list|history|rollback [GENERATION]>'
       return
       ;;
     install | list | history)
       if [ "$#" -gt 1 ]; then
-        echo "Usage: just profile $action" >&2
+        echo "Usage: scripts/ember profile $action" >&2
         return 2
       fi
       ;;
     rollback)
       if [ "$#" -gt 2 ] || { [ "$#" -eq 2 ] && [[ ! "$2" =~ ^[0-9]+$ ]]; }; then
-        echo 'Usage: just profile rollback [GENERATION]' >&2
+        echo 'Usage: scripts/ember profile rollback [GENERATION]' >&2
         return 2
       fi
       ;;
-    *) echo 'Usage: just profile [install|list|history|rollback [GENERATION]]' >&2; return 2 ;;
+    *) echo 'Usage: scripts/ember profile <install|list|history|rollback [GENERATION]>' >&2; return 2 ;;
   esac
   require_ember_user || return
   local profile="$HOME/.local/state/nix/profiles/profile"
@@ -335,50 +342,41 @@ refuse() {
 scan_grep() {
   local root=$1
   local pattern=$2
-  local output=$3
-  local description=$4
-  local rc
+  local description=$3
+  local matches rc=0
+  local reviewed_disk=''
   local -a roots
 
   if [ "$root" = "$repo" ]; then
-    roots=(flake.nix flake lib hosts suites inventory users software scripts tests modules)
+    roots=(flake.nix flake lib hosts suites inventory users software scripts tests modules packages)
+    if [ "$description" = "host/disk reference" ]; then
+      reviewed_disk='^hosts/ember/storage-spec[.]nix:[0-9]+:  targetDisk = "/dev/disk/by-id/nvme-eui[.][0-9a-f]{16}";$'
+    fi
   else
     roots=("$root")
   fi
 
-  set +e
-  grep -RInE \
+  # Keep source lines in memory and emit only file and line number.
+  matches=$(grep -rInHE \
     --exclude-dir=.git \
     --exclude-dir=fixtures \
     --exclude=ember \
     --exclude='result*' \
-    -- "$pattern" "${roots[@]}" \
-    >"$output" 2>&1
-  rc=$?
-  set -e
-
-  # Only the reviewed host binding may name a physical disk. Shared modules
-  # and every other host line remain subject to the original scan.
-  if [ "$rc" -eq 0 ] && [ "$root" = "$repo" ] && [ "$description" = "host/disk reference" ]; then
-    set +e
-    grep -vE '^hosts/ember/storage-spec\.nix:[0-9]+:  targetDisk = "/dev/disk/by-id/nvme-eui\.[0-9a-f]{16}";$' "$output" > "$output.filtered"
-    rc=$?
-    set -e
-    mv "$output.filtered" "$output"
-  fi
-
+    -- "$pattern" "${roots[@]}" 2>/dev/null) || rc=$?
   case "$rc" in
     0)
-      echo "forbidden $description:" >&2
-      cat "$output" >&2
-      return 1
+      awk -F : -v reviewed_disk="$reviewed_disk" -v description="$description" '
+        reviewed_disk != "" && $0 ~ reviewed_disk { next }
+        {
+          if (!found++) print "forbidden " description ":"
+          print $1 ":" $2
+        }
+        END { exit (found ? 1 : 0) }
+      ' <<<"$matches" >&2
       ;;
-    1)
-      return 0
-      ;;
+    1) return 0 ;;
     *)
-      echo "scan failed while looking for $description:" >&2
-      cat "$output" >&2
+      echo "scan failed while looking for $description (grep exit $rc)" >&2
       return 2
       ;;
   esac
@@ -389,8 +387,8 @@ static_scan() {
   local forbidden='(/home/folio|/dev/nvme[0-9]|/dev/sd[a-z]|/dev/disk/by-id/)'
   local status=0
 
-  scan_grep "$root" "$forbidden" /tmp/ember-static-scan.txt "host/disk reference" || status=$?
-  scan_grep "$root" 'UUID=[0-9a-fA-F-]{8,}' /tmp/ember-uuid-scan.txt "UUID literal" || status=$?
+  scan_grep "$root" "$forbidden" "host/disk reference" || status=$?
+  scan_grep "$root" 'UUID=[0-9a-fA-F-]{8,}' "UUID literal" || return "$?"
   return "$status"
 }
 
@@ -418,11 +416,10 @@ secret_scan() {
   esac
 }
 
-scan_selftest() {
-  local tmp
-  selftest_tmp=$(mktemp -d)
-  trap 'rm -rf "$selftest_tmp"' EXIT
-  tmp=$selftest_tmp
+scan_selftest() (
+  local tmp rc
+  tmp=$(mktemp -d) || return
+  trap 'rm -rf "$tmp"' EXIT
 
   mkdir -p "$tmp/empty" "$tmp/path/modules" "$tmp/secret"
 
@@ -435,29 +432,84 @@ scan_selftest() {
     return 1
   fi
 
-  local fake_home
+  local fake_home scan_output
   fake_home="/home/""folio/example"
   printf 'not a real path: %s\n' "$fake_home" >"$tmp/path/modules/bad.nix"
-  if static_scan "$tmp/path"; then
-    echo "self-test: path scanner did not reject modules/bad.nix" >&2
+  rc=0
+  scan_output=$(static_scan "$tmp/path" 2>&1) || rc=$?
+  if [ "$rc" -ne 1 ] || [[ "$scan_output" != *'/modules/bad.nix:1'* || "$scan_output" == *"$fake_home"* ]]; then
+    echo "self-test: path scanner failed to report a redacted modules/bad.nix match" >&2
     return 1
   fi
   rm "$tmp/path/modules/bad.nix"
   printf 'targetDisk = "%s%s";\n' '/dev/disk/' 'by-id/nvme-eui.0000000000000000' >"$tmp/path/modules/bad-disk.nix"
-  if static_scan "$tmp/path"; then
-    echo "self-test: path scanner allowed a physical disk in a shared module" >&2
+  rc=0
+  static_scan "$tmp/path" || rc=$?
+  if [ "$rc" -ne 1 ]; then
+    echo "self-test: path scanner failed to reject a physical disk in a shared module" >&2
     return 1
   fi
 
   # Build the sample at runtime so the scanner script itself does not contain
   # a matching credential literal.
   printf 'aws_access_key_id = "AKIA%s"\n' 'Z7Q2X4W6R8T1Y3U5' >"$tmp/secret/leak.txt"
-  if secret_scan "$tmp/secret"; then
-    echo "self-test: secret scanner did not reject a fake AWS key" >&2
+  rc=0
+  secret_scan "$tmp/secret" || rc=$?
+  if [ "$rc" -ne 1 ]; then
+    echo "self-test: secret scanner failed to reject a fake AWS key" >&2
     return 1
   fi
 
   echo "scanner self-tests passed"
+)
+
+# replaceDependencies generates helper derivations lazily; force every check
+# derivation to be instantiated before the no-build flake check. Prefer one
+# nix-eval-jobs pass; keep the per-check loop for environments without the
+# devShell.
+force_check_evals() {
+  local failed=0 rc=0 log err_log
+  if command -v nix-eval-jobs >/dev/null 2>&1 && command -v python3 >/dev/null 2>&1; then
+    log=$(mktemp)
+    err_log=$(mktemp)
+    # Two workers keep the combined memory budget inside a normal CI runner;
+    # the default worker count would exceed available RAM on a many-core host.
+    nix-eval-jobs --workers 2 --flake "path:.#checks.x86_64-linux" >"$log" 2>"$err_log" || failed=1
+    if [ -s "$err_log" ]; then
+      cat "$err_log" >&2
+    fi
+    python3 - "$log" <<'PY' || rc=1
+import json
+import sys
+
+failed = False
+with open(sys.argv[1], encoding="utf-8") as handle:
+    for line in handle:
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            job = json.loads(line)
+        except json.JSONDecodeError:
+            print(f"check eval: unparsable job line: {line}", file=sys.stderr)
+            failed = True
+            continue
+        error = job.get("error")
+        if error:
+            failed = True
+            print(f"check eval failed: {job.get('attr', '?')}: {error}", file=sys.stderr)
+sys.exit(1 if failed else 0)
+PY
+    rm -f "$log" "$err_log"
+    if [ "$failed" -ne 0 ] || [ "$rc" -ne 0 ]; then
+      return 1
+    fi
+    return 0
+  fi
+
+  for check in vm-accounts vm-persistence vm-offline-link vm-desktop vm-user-environment vm-connectivity; do
+    nix eval --raw --no-update-lock-file "path:.#checks.x86_64-linux.${check}.drvPath" >/dev/null
+  done
 }
 
 main() {
@@ -477,11 +529,7 @@ main() {
       static_scan
       secret_scan
       scan_selftest
-      # replaceDependencies generates a helper derivation lazily; force the
-      # VM check derivations to be instantiated before the no-build flake check.
-      for check in vm-accounts vm-persistence vm-offline-boot vm-offline-desktop vm-offline-link vm-desktop vm-user-environment vm-connectivity; do
-        nix eval --raw --no-update-lock-file "path:.#checks.x86_64-linux.${check}.drvPath" >/dev/null
-      done
+      force_check_evals
       nix flake check --no-build --no-update-lock-file path:.
       ;;
     scan-selftest)
@@ -489,7 +537,11 @@ main() {
       ;;
     build)
       echo "building system-preview; this is not installable and does not touch any disk"
-      nix build --no-link --print-out-paths --no-update-lock-file path:.#packages.x86_64-linux.system-preview
+      if command -v nom >/dev/null 2>&1; then
+        nom build --no-link --print-out-paths --no-update-lock-file path:.#packages.x86_64-linux.system-preview
+      else
+        nix build --no-link --print-out-paths --no-update-lock-file path:.#packages.x86_64-linux.system-preview
+      fi
       ;;
     software-build)
       software_build
@@ -501,9 +553,6 @@ main() {
     profile)
       shift
       profile_command "$@"
-      ;;
-    profile-install)
-      profile_command install
       ;;
     switch | test | boot | install | activate)
       refuse

@@ -37,7 +37,7 @@ def main():
     parser.add_argument("--normalizer", required=True)
     args = parser.parse_args()
     if os.geteuid() != 0 or Path("/proc/sys/kernel/hostname").read_text().strip() != "folio":
-        raise ValueError("Run through just migrate-folio-data on Folio with local sudo")
+        raise ValueError("Run through scripts/ember migrate-folio-data on Folio with local sudo")
     root = Path(args.target_root).resolve()
     if root != Path("/mnt"):
         raise ValueError("only the reviewed /mnt target is accepted")
