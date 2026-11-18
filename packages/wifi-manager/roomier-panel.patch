@@ -1,0 +1,64 @@
+diff --git a/src/ui/audio.rs b/src/ui/audio.rs
+index 8c9d76a..755321a 100644
+--- a/src/ui/audio.rs
++++ b/src/ui/audio.rs
+@@ -162,6 +162,9 @@ fn current_device_row(icon_name: &str, initial_name: &str) -> (GtkBox, Label) {
+     let current = Label::new(Some(initial_name));
+     current.set_halign(Align::Start);
+     current.set_hexpand(true);
++    current.set_wrap(true);
++    current.set_wrap_mode(gtk4::pango::WrapMode::WordChar);
++    current.set_lines(2);
+     current.set_ellipsize(gtk4::pango::EllipsizeMode::End);
+     current.add_css_class("cc-current-device");
+ 
+diff --git a/src/ui/home.rs b/src/ui/home.rs
+index ecb127b..c7379f2 100644
+--- a/src/ui/home.rs
++++ b/src/ui/home.rs
+@@ -145,7 +145,7 @@ impl HomeWidgets {
+ 
+     /// Update the merged Audio subtitle. Existing audio controller callbacks
+     /// call the output and input methods independently; the shared state
+-    /// keeps both values visible in one ellipsized label.
++    /// lets short summaries wrap within the available tile width.
+     pub(crate) fn set_audio_output_status(&self, status: Option<&str>) {
+         {
+             let mut summary = self.audio_summary.borrow_mut();
+@@ -233,6 +233,9 @@ fn make_tile(icon_name: &str, title: &str, tooltip: &str) -> HomeTileWidgets {
+ 
+     let status = Label::new(Some(TileState::Loading.label()));
+     status.set_halign(Align::Start);
++    status.set_wrap(true);
++    status.set_wrap_mode(gtk4::pango::WrapMode::WordChar);
++    status.set_lines(2);
+     status.set_ellipsize(gtk4::pango::EllipsizeMode::End);
+     status.set_hexpand(true);
+     status.add_css_class("cc-tile-status");
+diff --git a/src/ui/window.rs b/src/ui/window.rs
+index 41ce5fa..8e9036e 100644
+--- a/src/ui/window.rs
++++ b/src/ui/window.rs
+@@ -172,10 +172,11 @@ pub(crate) fn build_window(app: &Application) -> PanelWidgets {
+     icons::register();
+     let config = Config::load();
+ 
++    let width = if config.compact { 520 } else { WINDOW_WIDTH };
+     let window = ApplicationWindow::builder()
+         .application(app)
+         .title("WiFi Manager")
+-        .default_width(WINDOW_WIDTH)
++        .default_width(width)
+         .build();
+ 
+     // Initialize layer shell.
+@@ -485,6 +486,9 @@ fn make_detail_header(title: &str, status: &Label) -> (GtkBox, Button) {
+ 
+     status.add_css_class("cc-detail-status");
+     status.set_halign(gtk4::Align::Start);
++    status.set_wrap(true);
++    status.set_wrap_mode(gtk4::pango::WrapMode::WordChar);
++    status.set_lines(2);
+     status.set_ellipsize(gtk4::pango::EllipsizeMode::End);
+ 
+     info.append(&title_label);

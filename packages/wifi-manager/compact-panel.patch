@@ -1,0 +1,290 @@
+diff --git a/src/app/controls.rs b/src/app/controls.rs
+index ff7a1bb..89c8c41 100644
+--- a/src/app/controls.rs
++++ b/src/app/controls.rs
+@@ -63,20 +63,20 @@ fn kelvin_to_slider(kelvin: f64, max: f64) -> f64 {
+ }
+ 
+ pub(crate) fn setup_controls(widgets: &PanelWidgets) {
+-    widgets.controls.bind_power_actions(controls_panel::PowerActions {
+-        poweroff: crate::controls::power::poweroff,
+-        reboot: crate::controls::power::reboot,
+-        suspend: crate::controls::power::suspend,
+-        logout: crate::controls::power::logout,
+-    });
++    let compact = Config::load().compact;
++    if !compact {
++        widgets.controls.bind_power_actions(controls_panel::PowerActions {
++            poweroff: crate::controls::power::poweroff,
++            reboot: crate::controls::power::reboot,
++            suspend: crate::controls::power::suspend,
++            logout: crate::controls::power::logout,
++        });
++    }
+     let brightness_scale = widgets.controls.brightness_scale().clone();
+     let brightness_btn = widgets.controls.brightness_btn().clone();
+     let night_mode_scale = widgets.controls.night_mode_scale().clone();
+     let night_mode_btn = widgets.controls.night_mode_btn().clone();
+ 
+-    // Load persisted dynamic state
+-    let state_store = Rc::new(RefCell::new(AppStateStore::load()));
+-
+     // Formatter for brightness and volume
+     let percent_formatter = |_: &Scale, val: f64| -> String { format!("{}%", val.round() as i32) };
+ 
+@@ -152,10 +152,21 @@ pub(crate) fn setup_controls(widgets: &PanelWidgets) {
+                     });
+                 });
+             }
+-            Err(e) => log::error!("Failed to initialize BrightnessManager: {}", e),
++            Err(error) => {
++                b_scale.set_sensitive(false);
++                b_scale.set_draw_value(false);
++                brightness_btn.set_sensitive(false);
++                log::warn!("Brightness controls unavailable: {error}");
++            }
+         }
+     });
+ 
++    if compact {
++        return;
++    }
++
++    let state_store = Rc::new(RefCell::new(AppStateStore::load()));
++
+     // ── Night Mode ───────────────────────────────────────────────
+     let n_scale = night_mode_scale.clone();
+     let store_nm = Rc::clone(&state_store);
+diff --git a/src/app/mod.rs b/src/app/mod.rs
+index b446d3f..631efa9 100644
+--- a/src/app/mod.rs
++++ b/src/app/mod.rs
+@@ -18,7 +18,7 @@ mod live_updates;
+ mod media;
+ mod refresh_queue;
+ mod scanning;
+-mod shortcuts;
++pub(crate) mod shortcuts;
+ mod state;
+ mod system;
+ mod system_power;
+@@ -33,6 +33,7 @@ use std::rc::Rc;
+ use gtk4::glib;
+ use gtk4::prelude::*;
+ 
++use crate::config::Config;
+ use crate::dbus::network_manager::WifiManager;
+ use crate::dbus::vpn_manager::VpnManager;
+ use crate::ui::network_list;
+@@ -94,7 +95,9 @@ pub(crate) fn setup(
+     bt_live_updates::setup_bt_live_updates(widgets, Rc::clone(&state), panel_state.visible.clone());
+     setup_scan_button_dispatch(widgets, Rc::clone(&state));
+     setup_wifi_tab_sync(widgets, Rc::clone(&state));
+-    vpn::setup_vpn(widgets, Rc::clone(&state), panel_state.clone());
++    if !Config::load().compact {
++        vpn::setup_vpn(widgets, Rc::clone(&state), panel_state.clone());
++    }
+     if widgets.wifi_tab.is_active() {
+         scanning::start_wifi_auto_scan(
+             Rc::clone(&state),
+@@ -104,7 +107,6 @@ pub(crate) fn setup(
+         );
+     }
+     let reload_requested = panel_state.reload_requested.clone();
+-    shortcuts::setup_escape_key(widgets, panel_state.clone());
+     shortcuts::setup_reload_on_request(widgets, Rc::clone(&state), reload_requested);
+     scanning::setup_initial_state(widgets, Rc::clone(&state));
+     setup_visibility_pause(widgets, Rc::clone(&state), panel_state);
+@@ -119,9 +121,11 @@ pub(crate) fn setup_system_controls(
+ ) {
+     controls::setup_controls(widgets);
+     audio::setup(widgets);
+-    system_power::setup(widgets);
+-    system::setup(widgets, panel_visible);
+-    media::setup(widgets);
++    if !Config::load().compact {
++        system_power::setup(widgets);
++        system::setup(widgets, panel_visible);
++        media::setup(widgets);
++    }
+ }
+ 
+ /// Clone the WifiManager out of the RefCell (avoids holding borrow across await).
+diff --git a/src/app/shortcuts.rs b/src/app/shortcuts.rs
+index 6626f76..489084c 100644
+--- a/src/app/shortcuts.rs
++++ b/src/app/shortcuts.rs
+@@ -11,7 +11,7 @@ use crate::ui::window::PanelWidgets;
+ use super::{AppState, refresh_list};
+ 
+ /// Set up Escape key handler to hide panel (with proper state tracking).
+-pub(super) fn setup_escape_key(widgets: &PanelWidgets, panel_state: crate::daemon::PanelState) {
++pub(crate) fn setup_escape_key(widgets: &PanelWidgets, panel_state: crate::daemon::PanelState) {
+     use gtk4::{EventControllerKey, gdk, glib, prelude::*};
+ 
+     let key_controller = EventControllerKey::new();
+diff --git a/src/bootstrap.rs b/src/bootstrap.rs
+index d0d1759..04928e1 100644
+--- a/src/bootstrap.rs
++++ b/src/bootstrap.rs
+@@ -107,6 +107,7 @@ fn start_application() {
+         // successful NetworkManager connection.  Start them immediately so
+         // the Control Center remains navigable with optional services absent.
+         app::setup_system_controls(&widgets, panel_state.visible.clone());
++        app::shortcuts::setup_escape_key(&widgets, panel_state.clone());
+ 
+         let daemon_state = panel_state.clone();
+         glib::spawn_future_local(async move {
+@@ -121,10 +122,10 @@ fn start_application() {
+ 
+         let app_panel_state = panel_state.clone();
+         glib::spawn_future_local(async move {
++            let show_on_start = config::Config::load().show_on_start;
+             match dbus::network_manager::WifiManager::new().await {
+                 Ok(wifi) => {
+                     log::info!("NetworkManager D-Bus connection established");
+-                    let config = config::Config::load();
+                     app::setup(
+                         &widgets,
+                         wifi,
+@@ -132,16 +133,16 @@ fn start_application() {
+                         app_panel_state.clone(),
+                     );
+ 
+-                    if config.show_on_start {
+-                        app_panel_state.show();
+-                    }
+                 }
+                 Err(error) => {
+                     log::error!("Failed to connect to NetworkManager: {error}");
+-                    widgets.status_label.set_text("Error: NetworkManager unavailable");
+-                    app_panel_state.show();
++                    widgets.wifi_status_label.set_text("NetworkManager unavailable");
++                    widgets.home.set_wifi_status(Some("NetworkManager unavailable"));
+                 }
+             }
++            if show_on_start {
++                app_panel_state.show();
++            }
+         });
+     });
+ 
+diff --git a/src/config.rs b/src/config.rs
+index 3e27d1c..8e0e5e1 100644
+--- a/src/config.rs
++++ b/src/config.rs
+@@ -92,6 +92,9 @@ pub(crate) struct Config {
+     /// Custom icon for power off action
+     pub(crate) poweroff_icon: String,
+ 
++    /// Limit Home to networking, Bluetooth, audio and brightness.
++    pub(crate) compact: bool,
++
+     /// Whether to show the panel when the daemon starts (default: false)
+     pub(crate) show_on_start: bool,
+ 
+@@ -130,6 +133,7 @@ impl Default for Config {
+             reboot_icon: "wifi-manager-reboot-symbolic".to_string(),
+             suspend_icon: "wifi-manager-sleep-symbolic".to_string(),
+             poweroff_icon: "wifi-manager-power-symbolic".to_string(),
++            compact: false,
+             show_on_start: false,
+             charge_limit: None,
+         }
+diff --git a/src/ui/controls_panel.rs b/src/ui/controls_panel.rs
+index 2e23d5f..a20da56 100644
+--- a/src/ui/controls_panel.rs
++++ b/src/ui/controls_panel.rs
+@@ -318,7 +318,9 @@ impl ControlsPanel {
+         // Assemble sliders into the inner box
+         sliders_box.append(&brightness_row);
+         sliders_box.append(&volume_row);
+-        sliders_box.append(&night_mode_row);
++        if !config.compact {
++            sliders_box.append(&night_mode_row);
++        }
+ 
+         // Keep one ControlsPanel handle for existing app wiring while making
+         // all high-frequency controls permanently reachable from Home.
+diff --git a/src/ui/home.rs b/src/ui/home.rs
+index ac07e60..ecb127b 100644
+--- a/src/ui/home.rs
++++ b/src/ui/home.rs
+@@ -112,9 +112,13 @@ impl HomeWidgets {
+         // The quick controls below this grid own display actions directly.
+         container.attach(wifi.button(), 0, 0, 1, 1);
+         container.attach(bluetooth.button(), 1, 0, 1, 1);
+-        container.attach(audio.button(), 0, 1, 1, 1);
+-        container.attach(power_battery.button(), 1, 1, 1, 1);
+-        container.attach(system.button(), 0, 2, 2, 1);
++        if config.compact {
++            container.attach(audio.button(), 0, 1, 2, 1);
++        } else {
++            container.attach(audio.button(), 0, 1, 1, 1);
++            container.attach(power_battery.button(), 1, 1, 1, 1);
++            container.attach(system.button(), 0, 2, 2, 1);
++        }
+ 
+         let audio_summary = Rc::new(RefCell::new(AudioSummary::default()));
+         let widgets =
+diff --git a/src/ui/window.rs b/src/ui/window.rs
+index fa0b011..41ce5fa 100644
+--- a/src/ui/window.rs
++++ b/src/ui/window.rs
+@@ -182,7 +182,11 @@ pub(crate) fn build_window(app: &Application) -> PanelWidgets {
+     window.init_layer_shell();
+     window.set_namespace(Some("wifi-manager"));
+     window.set_layer(Layer::Top);
+-    window.set_keyboard_mode(KeyboardMode::OnDemand);
++    window.set_keyboard_mode(if config.compact {
++        KeyboardMode::Exclusive
++    } else {
++        KeyboardMode::OnDemand
++    });
+ 
+     // Apply position from config.
+     apply_position(&window, &config);
+@@ -201,6 +205,7 @@ pub(crate) fn build_window(app: &Application) -> PanelWidgets {
+     main_box.append(&sep);
+ 
+     let content_stack = Stack::new();
++    content_stack.set_vhomogeneous(!config.compact);
+     content_stack.set_transition_type(StackTransitionType::Crossfade);
+     content_stack.set_transition_duration(150);
+     content_stack.set_vexpand(true);
+@@ -212,7 +217,9 @@ pub(crate) fn build_window(app: &Application) -> PanelWidgets {
+     home_page.add_css_class("cc-page");
+     home_page.append(&home.container);
+     let media = media::MediaWidgets::new(&config.media_icon);
+-    home_page.append(&media.container);
++    if !config.compact {
++        home_page.append(&media.container);
++    }
+     content_stack.add_named(&home_page, Some(PanelPage::Home.name()));
+ 
+     // ── Wi-Fi detail page ────────────────────────────────────────────
+@@ -243,7 +250,9 @@ pub(crate) fn build_window(app: &Application) -> PanelWidgets {
+     wifi_networks_tab.set_group(Some(&wifi_vpn_tab));
+     wifi_subtab_bar.append(&wifi_networks_tab);
+     wifi_subtab_bar.append(&wifi_vpn_tab);
+-    wifi_page.append(&wifi_subtab_bar);
++    if !config.compact {
++        wifi_page.append(&wifi_subtab_bar);
++    }
+ 
+     let wifi_sub_stack = Stack::new();
+     wifi_sub_stack.set_transition_type(StackTransitionType::Crossfade);
+@@ -368,9 +377,11 @@ pub(crate) fn build_window(app: &Application) -> PanelWidgets {
+     quick_controls.add_css_class("cc-quick-controls");
+     quick_controls.set_margin_start(12);
+     quick_controls.set_margin_end(12);
+-    quick_controls.set_margin_bottom(8);
++    quick_controls.set_margin_bottom(if config.compact { 14 } else { 8 });
+     quick_controls.append(controls.display_page());
+-    quick_controls.append(controls.power_page());
++    if !config.compact {
++        quick_controls.append(controls.power_page());
++    }
+     home_page.append(&quick_controls);
+ 
+     let power = power::PowerWidgets::new();

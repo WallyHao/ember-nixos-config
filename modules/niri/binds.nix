@@ -45,8 +45,8 @@ in
   "${modifier}+Return" = spawn "Open terminal" actions.terminal;
   "${modifier}+D" = spawn "Open application launcher" actions.launcher;
   "${modifier}+V" = spawn "Open clipboard history" actions.clipboard;
-  "${modifier}+C" = spawn "Open control center" actions.controlCenter;
-  "${modifier}+P" = spawn "Open control center" actions.controlCenter;
+  "${modifier}+C" = spawn "Toggle quick settings" actions.controlCenter;
+  "${modifier}+P" = spawn "Open control menu" [ "ember-control" ];
   "${modifier}+Y" = spawn "Open Yazi" actions.fileManager;
 
   "${modifier}+Q" = bind "Close window" { close-window = { }; };

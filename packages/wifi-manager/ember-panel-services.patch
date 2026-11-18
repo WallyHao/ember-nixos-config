@@ -1,0 +1,642 @@
+diff --git a/src/app/mod.rs b/src/app/mod.rs
+index 631efa9..5866d4e 100644
+--- a/src/app/mod.rs
++++ b/src/app/mod.rs
+@@ -121,8 +121,8 @@ pub(crate) fn setup_system_controls(
+ ) {
+     controls::setup_controls(widgets);
+     audio::setup(widgets);
++    system_power::setup(widgets);
+     if !Config::load().compact {
+-        system_power::setup(widgets);
+         system::setup(widgets, panel_visible);
+         media::setup(widgets);
+     }
+diff --git a/src/app/system_power.rs b/src/app/system_power.rs
+index 9fe34ea..d9dbd18 100644
+--- a/src/app/system_power.rs
++++ b/src/app/system_power.rs
+@@ -26,21 +26,22 @@ use crate::ui::{
+ 
+ #[derive(Default)]
+ struct PowerUiState {
+-    battery: BatterySnapshot,
+     profiles: PowerProfileSnapshot,
+     profile_generation: u64,
+ }
+ 
+ /// Start independent UPower and power-profile watchers.
+ pub(crate) fn setup(widgets: &PanelWidgets) {
++    setup_battery(widgets);
++    if Config::load().compact {
++        return;
++    }
+     let view = widgets.power.clone();
+-    let home = widgets.home.clone();
+     let state = Rc::new(RefCell::new(PowerUiState::default()));
+     let combo_update = Rc::new(Cell::new(false));
+     let charge_limit = ChargeLimitController::new("/sys/class/power_supply");
+     let saved_charge_limit = Config::load().saved_charge_limit();
+ 
+-    render_battery(&view, &home, BatterySnapshot::unavailable(), false);
+     render_profiles(&view, &state, PowerProfileSnapshot::unavailable(), &combo_update);
+     let charge_limit_status = charge_limit.status();
+     render_charge_limit(
+@@ -58,43 +59,6 @@ pub(crate) fn setup(widgets: &PanelWidgets) {
+         combo_update.clone(),
+     );
+ 
+-    let battery_view = view.clone();
+-    let battery_home = home.clone();
+-    let battery_state = Rc::clone(&state);
+-    glib::spawn_future_local(async move {
+-        match BatteryManager::connect().await {
+-            Ok(manager) => {
+-                let manager = Rc::new(manager);
+-                let manager_for_watch = Rc::clone(&manager);
+-                glib::spawn_future_local(async move {
+-                    let result = manager_for_watch
+-                        .watch_changes({
+-                            let battery_view = battery_view.clone();
+-                            let battery_home = battery_home.clone();
+-                            let battery_state = Rc::clone(&battery_state);
+-                            move |snapshot| {
+-                                battery_state.borrow_mut().battery = snapshot.clone();
+-                                render_battery(&battery_view, &battery_home, snapshot, true);
+-                            }
+-                        })
+-                        .await;
+-                    if let Err(error) = result {
+-                        log::warn!("UPower watcher stopped: {error}");
+-                        battery_view
+-                            .status
+-                            .set_text(&format!("Battery service unavailable: {error}"));
+-                        battery_home.set_power_battery_status(None);
+-                    }
+-                });
+-            }
+-            Err(error) => {
+-                log::info!("UPower is unavailable: {error}");
+-                battery_view.status.set_text("Battery service unavailable");
+-                battery_home.set_power_battery_status(None);
+-            }
+-        }
+-    });
+-
+     let profile_view = view.clone();
+     let profile_state = Rc::clone(&state);
+     let profile_combo_update = Rc::clone(&combo_update);
+@@ -142,6 +106,43 @@ pub(crate) fn setup(widgets: &PanelWidgets) {
+     });
+ }
+ 
++fn setup_battery(widgets: &PanelWidgets) {
++    let battery_view = widgets.power.clone();
++    let battery_home = widgets.home.clone();
++    render_battery(&battery_view, &battery_home, BatterySnapshot::unavailable(), false);
++    glib::spawn_future_local(async move {
++        match BatteryManager::connect().await {
++            Ok(manager) => {
++                let manager = Rc::new(manager);
++                let manager_for_watch = Rc::clone(&manager);
++                glib::spawn_future_local(async move {
++                    let result = manager_for_watch
++                        .watch_changes({
++                            let battery_view = battery_view.clone();
++                            let battery_home = battery_home.clone();
++                            move |snapshot| {
++                                render_battery(&battery_view, &battery_home, snapshot, true);
++                            }
++                        })
++                        .await;
++                    if let Err(error) = result {
++                        log::warn!("UPower watcher stopped: {error}");
++                        battery_view
++                            .status
++                            .set_text(&format!("Battery service unavailable: {error}"));
++                        battery_home.set_power_battery_status(None);
++                    }
++                });
++            }
++            Err(error) => {
++                log::info!("UPower is unavailable: {error}");
++                battery_view.status.set_text("Battery service unavailable");
++                battery_home.set_power_battery_status(None);
++            }
++        }
++    });
++}
++
+ fn render_battery(
+     view: &PowerWidgets,
+     home: &crate::ui::home::HomeWidgets,
+diff --git a/src/ui/home.rs b/src/ui/home.rs
+index c7379f2..2be0532 100644
+--- a/src/ui/home.rs
++++ b/src/ui/home.rs
+@@ -85,11 +85,12 @@ pub(crate) struct HomeWidgets {
+     pub(crate) audio: HomeTileWidgets,
+     pub(crate) power_battery: HomeTileWidgets,
+     pub(crate) system: HomeTileWidgets,
++    pub(crate) proxy: HomeTileWidgets,
+     audio_summary: Rc<RefCell<AudioSummary>>,
+ }
+ 
+ impl HomeWidgets {
+-    pub(crate) fn new(config: &Config) -> Self {
++    pub(crate) fn new(config: &Config, show_proxy: bool) -> Self {
+         let container = Grid::new();
+         container.set_column_homogeneous(true);
+         container.set_row_spacing(8);
+@@ -105,24 +106,28 @@ impl HomeWidgets {
+         let wifi = make_tile(&config.wifi_icon, "Wi-Fi", "Open Wi-Fi details");
+         let bluetooth = make_tile(&config.bluetooth_icon, "Bluetooth", "Open Bluetooth details");
+         let audio = make_tile(&config.audio_icon, "Audio", "Open Audio details");
+-        let power_battery =
+-            make_tile(&config.power_battery_icon, "Power / Battery", "Open Power details");
++        let power_battery = if config.compact {
++            make_tile(&config.power_battery_icon, "Battery", "Open battery details")
++        } else {
++            make_tile(&config.power_battery_icon, "Power / Battery", "Open Power details")
++        };
++        let proxy = make_tile("wifi-manager-lock-symbolic", "Proxy", "Manage the Ember proxy");
+         let system = make_tile(&config.system_icon, "System", "Open System details");
+ 
+         // The quick controls below this grid own display actions directly.
+         container.attach(wifi.button(), 0, 0, 1, 1);
+         container.attach(bluetooth.button(), 1, 0, 1, 1);
+-        if config.compact {
+-            container.attach(audio.button(), 0, 1, 2, 1);
+-        } else {
+-            container.attach(audio.button(), 0, 1, 1, 1);
+-            container.attach(power_battery.button(), 1, 1, 1, 1);
++        container.attach(audio.button(), 0, 1, 1, 1);
++        container.attach(power_battery.button(), 1, 1, 1, 1);
++        if !config.compact {
+             container.attach(system.button(), 0, 2, 2, 1);
++        } else if show_proxy {
++            container.attach(proxy.button(), 0, 2, 2, 1);
+         }
+ 
+         let audio_summary = Rc::new(RefCell::new(AudioSummary::default()));
+         let widgets =
+-            Self { container, wifi, bluetooth, audio, power_battery, system, audio_summary };
++            Self { container, wifi, bluetooth, audio, power_battery, system, proxy, audio_summary };
+         widgets.render_audio_summary();
+         widgets
+     }
+diff --git a/src/ui/mod.rs b/src/ui/mod.rs
+index 9f8321b..7b6bc2b 100644
+--- a/src/ui/mod.rs
++++ b/src/ui/mod.rs
+@@ -10,6 +10,7 @@ pub(crate) mod network_list;
+ pub(crate) mod network_row;
+ pub(crate) mod password_dialog;
+ pub(crate) mod power;
++pub(crate) mod proxy;
+ pub(crate) mod system;
+ pub(crate) mod vpn_list;
+ pub(crate) mod vpn_row;
+diff --git a/src/ui/power.rs b/src/ui/power.rs
+index b81319f..836a3d5 100644
+--- a/src/ui/power.rs
++++ b/src/ui/power.rs
+@@ -229,7 +229,7 @@ pub(crate) struct PowerWidgets {
+ }
+ 
+ impl PowerWidgets {
+-    pub(crate) fn new() -> Self {
++    pub(crate) fn new(read_only: bool) -> Self {
+         let container = GtkBox::new(Orientation::Vertical, 10);
+         container.add_css_class("cc-page");
+         container.add_css_class("cc-power-page");
+@@ -242,8 +242,9 @@ impl PowerWidgets {
+         status.set_halign(Align::Start);
+         status.set_ellipsize(gtk4::pango::EllipsizeMode::End);
+         status.add_css_class("cc-detail-status");
+-        let battery_heading = heading("Battery");
+-        container.append(&battery_heading);
++        if !read_only {
++            container.append(&heading("Battery"));
++        }
+ 
+         let battery_row = GtkBox::new(Orientation::Horizontal, 10);
+         battery_row.add_css_class("cc-battery-row");
+@@ -294,7 +295,9 @@ impl PowerWidgets {
+         profile_status.add_css_class("cc-profile-status");
+         profile_section.append(&profile_status);
+         profile_section.set_visible(false);
+-        container.append(&profile_section);
++        if !read_only {
++            container.append(&profile_section);
++        }
+ 
+         let charge_limit_section = GtkBox::new(Orientation::Vertical, 6);
+         charge_limit_section.add_css_class("cc-charge-limit-section");
+@@ -324,7 +327,9 @@ impl PowerWidgets {
+         charge_limit_status.set_wrap(true);
+         charge_limit_status.add_css_class("cc-charge-limit-status");
+         charge_limit_section.append(&charge_limit_status);
+-        container.append(&charge_limit_section);
++        if !read_only {
++            container.append(&charge_limit_section);
++        }
+ 
+         Self {
+             container,
+diff --git a/src/ui/proxy.rs b/src/ui/proxy.rs
+new file mode 100644
+index 0000000..b739df5
+--- /dev/null
++++ b/src/ui/proxy.rs
+@@ -0,0 +1,250 @@
++//! UI for the bounded Ember proxy helper.
++
++use std::cell::{Cell, RefCell};
++use std::rc::Rc;
++
++use gtk4::{
++    Align, ApplicationWindow, Box as GtkBox, Button, DropDown, Label, ListItem, Orientation,
++    SignalListItemFactory, StringList, StringObject, glib, pango, prelude::*,
++};
++use gtk4_layer_shell::{KeyboardMode, Layer, LayerShell};
++
++use crate::process;
++use crate::ui::home::HomeTileWidgets;
++
++pub(crate) struct ProxyWidgets {
++    pub(crate) container: GtkBox,
++    pub(crate) status: Label,
++    feedback: Label,
++    enable: Button,
++    disable: Button,
++    load: Button,
++    nodes: StringList,
++    picker: DropDown,
++    apply: Button,
++    names: RefCell<Vec<String>>,
++    current: Cell<u32>,
++    busy: Cell<bool>,
++    helper: String,
++    window: glib::WeakRef<ApplicationWindow>,
++    tile: HomeTileWidgets,
++}
++
++impl ProxyWidgets {
++    pub(crate) fn new(
++        helper: String, window: &ApplicationWindow, tile: HomeTileWidgets,
++    ) -> Rc<Self> {
++        let container = GtkBox::new(Orientation::Vertical, 10);
++        container.set_margin_top(8);
++        container.set_margin_bottom(16);
++        container.set_margin_start(16);
++        container.set_margin_end(16);
++
++        let status = Label::new(Some("Checking proxy service…"));
++        let service_actions = GtkBox::new(Orientation::Horizontal, 8);
++        service_actions.add_css_class("cc-proxy-actions");
++        let enable = Button::with_label("Enable proxy");
++        let disable = Button::with_label("Disable proxy");
++        service_actions.append(&enable);
++        service_actions.append(&disable);
++        container.append(&service_actions);
++
++        let node_heading = Label::new(Some("Proxy node"));
++        node_heading.set_halign(Align::Start);
++        node_heading.add_css_class("cc-section-heading");
++        container.append(&node_heading);
++        let nodes = StringList::new(&[]);
++        let expression =
++            gtk4::PropertyExpression::new(StringObject::static_type(), None::<gtk4::Expression>, "string");
++        let picker = DropDown::new(Some(nodes.clone()), Some(expression));
++        picker.set_hexpand(true);
++        picker.set_enable_search(true);
++        picker.set_tooltip_text(Some("Choose a Mihomo node or select AUTO"));
++        picker.set_factory(Some(&label_factory()));
++        picker.set_list_factory(Some(&label_factory()));
++        let apply = Button::with_label("Apply");
++        let load = Button::with_label("Load nodes");
++        let node_actions = GtkBox::new(Orientation::Horizontal, 8);
++        node_actions.add_css_class("cc-proxy-actions");
++        node_actions.append(&picker);
++        node_actions.append(&apply);
++        node_actions.append(&load);
++        container.append(&node_actions);
++
++        let feedback = Label::new(None);
++        feedback.set_halign(Align::Start);
++        feedback.set_wrap(true);
++        feedback.add_css_class("cc-detail-status");
++        container.append(&feedback);
++
++        let view = Rc::new(Self {
++            container, status, feedback, enable, disable, load, nodes, picker, apply,
++            names: RefCell::new(Vec::new()), current: Cell::new(gtk4::INVALID_LIST_POSITION),
++            busy: Cell::new(false), helper, window: window.downgrade(), tile,
++        });
++        for (button, action) in [
++            (&view.enable, "on"), (&view.disable, "off"),
++            (&view.load, "panel-nodes"), (&view.apply, "select"),
++        ] {
++            let weak = Rc::downgrade(&view);
++            button.connect_clicked(move |_| {
++                if let Some(view) = weak.upgrade() {
++                    view.perform(action);
++                }
++            });
++        }
++        let weak = Rc::downgrade(&view);
++        view.picker.connect_selected_notify(move |picker| {
++            if let Some(view) = weak.upgrade() {
++                let selected = picker.selected();
++                view.apply.set_sensitive(
++                    !view.busy.get() && selected != gtk4::INVALID_LIST_POSITION
++                        && selected != view.current.get()
++                );
++            }
++        });
++        let weak = Rc::downgrade(&view);
++        window.connect_visible_notify(move |window| {
++            if window.is_visible() {
++                if let Some(view) = weak.upgrade() {
++                    view.refresh();
++                }
++            }
++        });
++        view.render_service_state("unknown");
++        view
++    }
++
++    pub(crate) fn refresh(self: &Rc<Self>) {
++        if self.busy.replace(true) {
++            return;
++        }
++        let view = self.clone();
++        glib::spawn_future_local(async move {
++            view.refresh_service().await;
++        });
++    }
++
++    async fn refresh_service(&self) {
++        let result = process::run(&self.helper, ["status"]).await;
++        let state = result.as_ref().ok().filter(|value| value.success())
++            .map_or("unknown", |value| value.stdout.trim());
++        self.busy.set(false);
++        self.render_service_state(state);
++    }
++
++    fn render_service_state(&self, state: &str) {
++        let active = state == "active";
++        let label = match state {
++            "active" => "Proxy is running",
++            "activating" => "Proxy is starting",
++            "deactivating" => "Proxy is stopping",
++            "inactive" => "Proxy is inactive",
++            "failed" => "Proxy service failed",
++            _ => "Proxy service status unavailable",
++        };
++        self.status.set_text(label);
++        self.tile.set_status(Some(label));
++        self.tile.set_active(active);
++        if !active {
++            self.set_nodes("");
++        }
++        let has_nodes = !self.names.borrow().is_empty();
++        self.enable.set_sensitive(!matches!(state, "active" | "activating"));
++        self.disable.set_sensitive(state != "deactivating");
++        self.load.set_sensitive(active);
++        self.picker.set_sensitive(active && has_nodes);
++        let selected = self.picker.selected();
++        self.apply.set_sensitive(active && has_nodes && selected != gtk4::INVALID_LIST_POSITION
++            && selected != self.current.get());
++    }
++
++    fn set_nodes(&self, data: &str) {
++        let mut items = data.split('\0');
++        let current = items.next().unwrap_or_default();
++        let names: Vec<String> = items.map(str::to_owned).collect();
++        let labels: Vec<String> = names.iter().map(|name| display_node(name)).collect();
++        let labels: Vec<&str> = labels.iter().map(String::as_str).collect();
++        let selected = names.iter().position(|name| name == current)
++            .map_or(gtk4::INVALID_LIST_POSITION, |index| index as u32);
++        self.current.set(selected);
++        self.nodes.splice(0, self.nodes.n_items(), &labels);
++        self.picker.set_selected(selected);
++        self.load.set_label(if names.is_empty() { "Load nodes" } else { "Reload nodes" });
++        *self.names.borrow_mut() = names;
++    }
++
++    fn perform(self: &Rc<Self>, action: &'static str) {
++        let mut args = vec![action.to_owned()];
++        if action == "select" {
++            let Some(name) = self.names.borrow().get(self.picker.selected() as usize).cloned() else {
++                return;
++            };
++            args.push(name);
++        }
++        if self.busy.replace(true) {
++            return;
++        }
++        let Some(window) = self.window.upgrade() else {
++            self.busy.set(false);
++            return;
++        };
++        self.enable.set_sensitive(false);
++        self.disable.set_sensitive(false);
++        self.load.set_sensitive(false);
++        self.picker.set_sensitive(false);
++        self.apply.set_sensitive(false);
++        self.feedback.set_text("Waiting for authorization or the proxy service…");
++        // Let the desktop authentication dialog take focus above the panel.
++        window.set_keyboard_mode(KeyboardMode::None);
++        window.set_layer(Layer::Bottom);
++        let view = self.clone();
++        glib::spawn_future_local(async move {
++            let result = process::run(&view.helper, &args).await;
++            window.set_layer(Layer::Top);
++            window.set_keyboard_mode(KeyboardMode::Exclusive);
++            let message = match result {
++                Ok(output) if output.success() => match action {
++                    "panel-nodes" => {
++                        view.set_nodes(&output.stdout);
++                        if view.names.borrow().is_empty() { "No proxy nodes available." } else { "" }
++                    }
++                    "select" => {
++                        view.current.set(view.picker.selected());
++                        "Proxy node selected."
++                    }
++                    "on" => "Proxy enabled. It may wait for a connection.",
++                    _ => "Proxy disabled.",
++                },
++                Ok(output) if output.status == 126 => "Authorization cancelled.",
++                _ => "Proxy operation failed. Check authorization or the proxy service.",
++            };
++            view.feedback.set_text(message);
++            view.refresh_service().await;
++        });
++    }
++}
++
++fn display_node(name: &str) -> String {
++    name.chars().map(|character| if character.is_control() { ' ' } else { character }).collect()
++}
++
++fn label_factory() -> SignalListItemFactory {
++    let factory = SignalListItemFactory::new();
++    factory.connect_setup(|_, object| {
++        let item = object.downcast_ref::<ListItem>().expect("node list item");
++        let label = Label::new(None);
++        label.set_xalign(0.0);
++        label.set_max_width_chars(26);
++        label.set_ellipsize(pango::EllipsizeMode::End);
++        item.set_child(Some(&label));
++    });
++    factory.connect_bind(|_, object| {
++        let item = object.downcast_ref::<ListItem>().expect("node list item");
++        let label = item.child().and_downcast::<Label>().expect("node label");
++        let value = item.item().and_downcast::<StringObject>().expect("node text");
++        label.set_text(&value.string());
++        label.set_tooltip_text(Some(&value.string()));
++    });
++    factory
++}
+diff --git a/src/ui/window.rs b/src/ui/window.rs
+index 8e9036e..23af093 100644
+--- a/src/ui/window.rs
++++ b/src/ui/window.rs
+@@ -11,11 +11,11 @@ use gtk4::{
+     Orientation, Stack, StackTransitionType, ToggleButton, gdk,
+ };
+ use gtk4_layer_shell::{Edge, KeyboardMode, Layer, LayerShell};
+-use std::cell::RefCell;
++use std::{cell::RefCell, rc::Rc};
+ 
+ use super::{
+     audio, controls_panel, device_list, header, home, icons, media, network_list, password_dialog,
+-    power, system, vpn_list,
++    power, proxy, system, vpn_list,
+ };
+ use crate::config::{Config, Position};
+ 
+@@ -40,6 +40,7 @@ pub(crate) enum PanelPage {
+     Bluetooth,
+     Audio,
+     Power,
++    Proxy,
+     System,
+ }
+ 
+@@ -51,6 +52,7 @@ impl PanelPage {
+             Self::Bluetooth => "bluetooth",
+             Self::Audio => "audio",
+             Self::Power => "power",
++            Self::Proxy => "proxy",
+             Self::System => "system",
+         }
+     }
+@@ -97,6 +99,7 @@ pub(crate) struct PanelWidgets {
+     pub home: home::HomeWidgets,
+     pub audio: audio::AudioWidgets,
+     pub power: power::PowerWidgets,
++    pub proxy: Option<Rc<proxy::ProxyWidgets>>,
+     pub media: media::MediaWidgets,
+     pub system: system::SystemWidgets,
+     // Display and Power detail controls
+@@ -143,8 +146,12 @@ impl PanelWidgets {
+                 self.wifi_tab.set_active(false);
+                 self.bt_tab.set_active(false);
+             }
+-            PanelPage::Power => {
+-                self.title_label.set_text("Power");
++            PanelPage::Power | PanelPage::Proxy => {
++                if page == PanelPage::Proxy {
++                    if let Some(proxy) = &self.proxy {
++                        proxy.refresh();
++                    }
++                }
+                 self.title_label.set_visible(false);
+                 self.wifi_switch.set_visible(false);
+                 self.scan_button.set_visible(false);
+@@ -207,15 +214,22 @@ pub(crate) fn build_window(app: &Application) -> PanelWidgets {
+ 
+     let content_stack = Stack::new();
+     content_stack.set_vhomogeneous(!config.compact);
++    content_stack.set_hhomogeneous(!config.compact);
+     content_stack.set_transition_type(StackTransitionType::Crossfade);
+     content_stack.set_transition_duration(150);
+     content_stack.set_vexpand(true);
+     content_stack.add_css_class("content-stack");
+ 
+     // ── Home page ────────────────────────────────────────────────────
+-    let home = home::HomeWidgets::new(&config);
++    let proxy_helper = std::env::var("EMBER_PROXY_PANEL").ok().filter(|_| config.compact);
++    let home = home::HomeWidgets::new(&config, proxy_helper.is_some());
+     let home_page = GtkBox::new(Orientation::Vertical, 0);
+     home_page.add_css_class("cc-page");
++    if proxy_helper.is_some() {
++        // Give the three-row layout room for wrapped subtitles. Otherwise
++        // GTK can repeatedly negotiate the centered layer's height.
++        home_page.set_size_request(-1, 420);
++    }
+     home_page.append(&home.container);
+     let media = media::MediaWidgets::new(&config.media_icon);
+     if !config.compact {
+@@ -385,19 +399,35 @@ pub(crate) fn build_window(app: &Application) -> PanelWidgets {
+     }
+     home_page.append(&quick_controls);
+ 
+-    let power = power::PowerWidgets::new();
++    let power = power::PowerWidgets::new(config.compact);
+     let power_page = GtkBox::new(Orientation::Vertical, 0);
+     power_page.add_css_class("cc-page");
+-    let (power_header, power_back_button) = make_detail_header("Power", &power.status);
++    let power_title = if config.compact { "Battery details" } else { "Power" };
++    let (power_header, power_back_button) = make_detail_header(power_title, &power.status);
+     power_page.append(&power_header);
+     power_page.append(&power.container);
+-    let power_hint = Label::new(Some("Session actions are available on Home."));
+-    power_hint.add_css_class("cc-detail-hint");
+-    power_hint.set_margin_start(16);
+-    power_hint.set_margin_end(16);
+-    power_page.append(&power_hint);
++    if !config.compact {
++        let power_hint = Label::new(Some("Session actions are available on Home."));
++        power_hint.add_css_class("cc-detail-hint");
++        power_hint.set_margin_start(16);
++        power_hint.set_margin_end(16);
++        power_page.append(&power_hint);
++    }
+     content_stack.add_named(&power_page, Some(PanelPage::Power.name()));
+ 
++    let proxy = proxy_helper.map(|helper| {
++        let view = proxy::ProxyWidgets::new(helper, &window, home.proxy.clone());
++        let page = GtkBox::new(Orientation::Vertical, 0);
++        page.add_css_class("cc-page");
++        let (title, back) = make_detail_header("Proxy", &view.status);
++        page.append(&title);
++        page.append(&view.container);
++        content_stack.add_named(&page, Some(PanelPage::Proxy.name()));
++        let stack = content_stack.clone();
++        back.connect_clicked(move |_| stack.set_visible_child_name(PanelPage::Home.name()));
++        view
++    });
++
+     // ── System detail page ──────────────────────────────────────────
+     let system = system::SystemWidgets::new();
+     let system_page = GtkBox::new(Orientation::Vertical, 0);
+@@ -447,6 +477,7 @@ pub(crate) fn build_window(app: &Application) -> PanelWidgets {
+         home,
+         audio,
+         power,
++        proxy,
+         media,
+         system,
+         controls,
+@@ -512,6 +543,7 @@ fn wire_navigation(
+         (widgets.home.audio.button().clone(), PanelPage::Audio),
+         (widgets.home.power_battery.button().clone(), PanelPage::Power),
+         (widgets.home.system.button().clone(), PanelPage::System),
++        (widgets.home.proxy.button().clone(), PanelPage::Proxy),
+     ];
+     for (button, page) in navigation {
+         let widgets = widgets.clone();

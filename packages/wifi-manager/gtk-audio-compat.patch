@@ -1,0 +1,42 @@
+diff --git a/resources/style.css b/resources/style.css
+index 852f673..936552d 100644
+--- a/resources/style.css
++++ b/resources/style.css
+@@ -655,7 +655,6 @@ button.cc-tile:disabled {
+ 
+ .cc-tile-status {
+   min-width: 0;
+-  max-width: 100%;
+   color: rgba(255, 255, 255, 0.48);
+   font-size: 11px;
+   font-weight: 500;
+@@ -748,7 +747,6 @@ button.cc-tile:disabled {
+ .cc-media-subtitle,
+ .cc-media-feedback {
+   min-width: 0;
+-  max-width: 100%;
+   font-size: 11px;
+ }
+ 
+diff --git a/src/controls/audio.rs b/src/controls/audio.rs
+index 8601b45..c6ae37b 100644
+--- a/src/controls/audio.rs
++++ b/src/controls/audio.rs
+@@ -111,9 +111,14 @@ impl AudioManager {
+         {
+             let manager_weak = Rc::downgrade(&manager);
+             manager.context.borrow_mut().set_state_callback(Some(Box::new(move || {
+-                if let Some(manager) = manager_weak.upgrade() {
+-                    manager.handle_context_state();
+-                }
++                // Pulse may call back synchronously from Context::connect.
++                // Wait until the mutable borrow of the context has been released.
++                let manager_weak = manager_weak.clone();
++                glib::idle_add_local_once(move || {
++                    if let Some(manager) = manager_weak.upgrade() {
++                        manager.handle_context_state();
++                    }
++                });
+             })));
+         }
+ 
