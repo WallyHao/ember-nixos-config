@@ -6,7 +6,6 @@
 }:
 let
   c = config.ember.appearance.colors;
-  profile = "${config.home.homeDirectory}/.local/state/nix/profiles/profile";
   state = "${config.home.homeDirectory}/.local/state";
 
   # Folio's p10k resource clears most POWERLEVEL9K_* options when sourced, so
@@ -76,11 +75,15 @@ in
           eval "$(zoxide init zsh)"
         fi
 
+        if command -v atuin >/dev/null 2>&1; then
+          eval "$(atuin init zsh)"
+        fi
+
         y() {
           local tmp cwd result
           if ! command -v yazi >/dev/null 2>&1; then
             print -u2 'Yazi is not installed yet. Run:'
-            print -u2 '  just profile install'
+            print -u2 '  just apps'
             return 127
           fi
           tmp="$(mktemp "''${TMPDIR:-/tmp}/ember-yazi-cwd.XXXXXX")" || return
