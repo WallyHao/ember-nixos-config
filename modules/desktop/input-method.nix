@@ -29,7 +29,7 @@ in
     '';
     xdg.configFile."fcitx5/conf/classicui.conf".text = ''
       Theme=emberlight
-      Font=LXGW WenKai Mono GB 18
+      Font=${config.ember.desktop.fontFamily} ${toString config.ember.desktop.fontSize}
       Vertical Candidate List=False
       PreferTextIcon=False
     '';

@@ -22,7 +22,7 @@
     services.mako = {
       enable = true;
       settings = {
-        font = "LXGW WenKai Mono GB 18";
+        font = "${config.ember.desktop.fontFamily} ${toString config.ember.desktop.fontSize}";
         background-color = config.ember.appearance.colors.base00;
         text-color = config.ember.appearance.colors.base05;
         border-color = config.ember.appearance.colors.base04;

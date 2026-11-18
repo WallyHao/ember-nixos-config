@@ -29,7 +29,7 @@ in
         "custom/input-language" = {
           exec = "${indicator}/bin/ember-input-language";
           return-type = "json";
-          restart-interval = 2;
+          restart-interval = 10;
           tooltip = false;
         };
         "niri/workspaces" = {
@@ -46,7 +46,7 @@ in
         };
       };
       style = ''
-        * { border: none; border-radius: 0; font-family: "LXGW WenKai Mono GB"; font-size: 18px; font-weight: 700; min-height: 0; }
+        * { border: none; border-radius: 0; font-family: "${config.ember.desktop.fontFamily}"; font-size: ${toString config.ember.desktop.fontSize}px; font-weight: 700; min-height: 0; }
         window#waybar { background: transparent; color: ${c.base05}; }
         #workspaces { margin-left: 24px; }
         #workspaces button { padding: 0 4px; margin: 0; background: transparent; color: ${c.base04}; font-size: 9px; }

@@ -1,4 +1,4 @@
-# Adapted from Folio's fuzzel renderer: identical non-colour settings.
+# Adapted from Folio's fuzzel renderer.
 { config, lib, ... }:
 let
   c = config.ember.appearance.colors;
@@ -11,7 +11,7 @@ in
       settings = {
         main = {
           icons-enabled = false;
-          font = "LXGW WenKai Mono GB:size=18";
+          font = config.ember.desktop.terminalFont;
           dpi-aware = false;
           prompt = "Search> ";
           match-counter = true;
