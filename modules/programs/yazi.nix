@@ -11,7 +11,7 @@ let
     set -eu
     if ! command -v yazi >/dev/null 2>&1; then
       printf '%s\n' 'Yazi is not installed yet.' 'Install the user profile with:' \
-        '  just profile install'
+        '  just apps'
       sleep 8
       exit 127
     fi

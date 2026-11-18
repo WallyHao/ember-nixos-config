@@ -4,7 +4,7 @@
     ../../modules/niri
     ../../modules/terminal
     ../../modules/apps
-    ../../modules/profile
+    ../../modules/programs
     ./preferences.nix
   ];
 }

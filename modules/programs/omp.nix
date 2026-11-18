@@ -122,4 +122,16 @@ in
         echo "warning: could not select the emberlight OMP theme in $ompConfig" >&2
     fi
   '';
+
+  # OMP discovers every skill as <root>/<name>/SKILL.md at startup. Keep the
+  # Documents skills root registered in the writable config without dropping
+  # other custom roots the user adds at runtime.
+  home.activation.emberOmpSkills = lib.hm.dag.entryAfter [ "emberOmpTheme" ] ''
+    ompConfig="$HOME/.omp/agent/config.yml"
+    skillsDir="$HOME/Documents/skills"
+    ${pkgs.yq-go}/bin/yq -i \
+      ".skills.customDirectories = (((.skills.customDirectories // []) + [\"$skillsDir\"]) | unique)" \
+      "$ompConfig" ||
+      echo "warning: could not register $skillsDir in $ompConfig" >&2
+  '';
 }
