@@ -2,13 +2,20 @@
   perSystem =
     { pkgs, ... }:
     {
-      formatter = pkgs.nixfmt-rfc-style;
+      formatter = pkgs.nixfmt;
 
       devShells.default = pkgs.mkShell {
         packages = with pkgs; [
           just
-          nixfmt-rfc-style
+          nixfmt
+          nix-output-monitor
+          nix-eval-jobs
+          nixos-facter
           shellcheck
+          actionlint
+          deadnix
+          ripgrep
+          jq
           gitleaks
           python3
           pciutils
