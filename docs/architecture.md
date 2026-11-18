@@ -20,6 +20,7 @@ hosts/ember/
   default.nix              host policy; imports the laptop suite
   hardware.nix             Intel/NVIDIA, initrd modules, firmware
   power.nix                host-specific TLP parameters
+  nixos-cli.nix            points the CLI to the Ember checkout
   storage-spec.nix         target disk, layout module, confirmation
   storage.nix              binds storage-spec to the layout
   storage-layout.nix       disko partitions, Btrfs subvolumes, tmpfs root
@@ -38,15 +39,18 @@ modules/
                            system input method
   appearance/              Stylix, login, TTY appearance and assets
   desktop/                 Home Manager desktop options, theme, Waybar,
-                           Fuzzel, Mako, clipboard, lock, cursor
+                           Fuzzel, Mako, clipboard, lock, cursor, disk
+                           automount, and the profile session PATH/XDG
+                           environment
   niri/                    Niri configuration, actions, bindings,
                            single-window service and script
   terminal/                Foot, Zsh, terminal tools and p10k
-  apps/                    NixVim and profile PATH/desktop integration
-  profile/                 configuration for profile-installed applications
+  nixvim/                  NixVim editor, LSP servers and CSS resources
+  programs/                configuration for profile-installed applications
+  gaming.nix               Steam, GE-Proton, GameMode, Gamescope, XWayland
 
 users/wallyhao/
-  home.nix                 imports desktop, niri, terminal, apps, profile
+  home.nix                 imports desktop, niri, terminal, nixvim, programs
   preferences.nix          user preferences
   persistence.nix          user persistent directories
   bootstrap-password.nix   initial account hash
@@ -105,15 +109,16 @@ modules:
 ```text
 preservation.nixosModules.preservation
 stylix.nixosModules.stylix
-modules/system/default.nix
+nixos-cli.nixosModules.nixos-cli
 host.hostModule
 hardwareModule
 identityModule
-modules/system/home-manager.nix
 home-manager.nixosModules.home-manager
 users/wallyhao/persistence.nix
 disko.nixosModules.disko + storageModule   (only when storage is passed)
 ```
+
+The base suite imports the system module. The desktop suite imports the Home Manager bridge.
 
 `identityModule` is generated in `mk-host.nix`; it supplies `ember.hostName`,
 `ember.stateVersion`, user identity, home module, and Home Manager state
@@ -146,8 +151,10 @@ inventory.hosts.ember.hostModule
            -> modules/appearance
         -> suites/nixos/desktop.nix
            -> modules/session
+           -> modules/gaming.nix
            -> modules/system/home-manager.nix
      -> hosts/ember/power.nix
+     -> hosts/ember/nixos-cli.nix
 ```
 
 `hosts/ember/hardware.nix`, `storage-spec.nix`, `storage.nix`, and
@@ -159,11 +166,12 @@ System modules own boot, accounts, networking, proxy, power, persistence,
 login, portals, audio, and the system Stylix configuration.
 
 Home Manager modules own the user Niri configuration, Waybar, Fuzzel, Mako,
-Foot, Fcitx5, clipboard, lock/idle services, NixVim, and user tools. They read
+Foot, Fcitx5, clipboard, lock/idle services, automatic removable-disk
+mounting through udiskie, NixVim, and user tools. They read
 the Emberlight palette through `config.ember.appearance`, which is derived from
 Stylix; no adapter reads the JSON asset directly.
 
-`modules/profile/` contains configuration for applications installed by the
+`modules/programs/` contains configuration for applications installed by the
 separate software profile. It has no package download or installation logic.
 
 The user software profile is separate from both layers:
@@ -175,10 +183,10 @@ software/flake.nix
        -> bootstrap/packages provides the matching offline closure paths
 ```
 
-It has its own `software/flake.lock`. `just profile install` manages
-`~/.local/state/nix/profiles/profile`; NixOS and Home Manager do not install
-that profile. The script only reconciles entries owned by the Ember software
-flake and preserves manually installed entries.
+It has its own `software/flake.lock`. `just apps` (install is the default menu
+choice) manages `~/.local/state/nix/profiles/profile`; NixOS and Home Manager do
+not install that profile. The script only reconciles entries owned by the Ember
+software flake and preserves manually installed entries.
 
 ## State model
 
@@ -200,6 +208,7 @@ back into the tmpfs root, including:
 /persist/home/wallyhao/Downloads
 /persist/home/wallyhao/Pictures
 /persist/home/wallyhao/.local/state/nix
+/persist/home/wallyhao/.local/share/Steam
 ```
 
 User-specific directories are listed in `users/wallyhao/persistence.nix`.
@@ -218,10 +227,10 @@ preservation early mounts.
 | `lib.ember.deployment` | serializable deployment state |
 | `lib.hearth.deployment` | compatibility alias |
 | `packages.x86_64-linux.system-preview` | real hardware + fixture storage |
+| `checks.x86_64-linux.storage-layout` | storage binding + disko script parse |
 | `checks.x86_64-linux.desktop-config` | Niri/Foot/NixVim config checks |
-| `checks.x86_64-linux.eval-contracts` | system and negative-case contracts |
-| `checks.x86_64-linux.eval-user-environment` | Home Manager contracts |
-| `checks.x86_64-linux.vm-*` | account, persistence, boot, desktop, network |
+| `checks.x86_64-linux.eval-contracts` | inventory, deployment and daemon-conflict gates |
+| `checks.x86_64-linux.vm-*` | accounts, persistence, offline boot, desktop, network |
 
 ## Deployment gate
 

@@ -1,8 +1,7 @@
 # Hardware
 
-Read-only observation from 2026-11-09, rechecked during implementation. These
-are facts about the current machine, not a disk binding or a deployment
-authorization.
+Observed hardware facts for the laptop. They describe the machine; the storage
+layout is declared separately in `hosts/ember/storage-layout.nix`.
 
 | Item | Observed |
 | --- | --- |
@@ -35,18 +34,38 @@ addresses the decimal and hexadecimal digits coincide:
 - Intel: `PCI:0:2:0`
 - NVIDIA: `PCI:1:0:0`
 
-These values are written only in `hosts/laptop/hardware.nix`.
+These values are written only in `hosts/ember/hardware.nix`.
 
-## Storage observations
+## Storage
 
-| Device | Observed | Planning meaning |
-| --- | --- | --- |
-| `sda` | USB, 953.9 GiB; `sda1` `/boot`, `sda2` current root/nix/home | current USB system, not a target |
-| `nvme0n1` | NVMe, 476.9 GiB; p1 260 MiB, p2 204.7 GiB, p6 271.9 GiB | internal candidate; existing partitions, no authorization |
-| `zram0` | 5.8 GiB current swap | old runtime state, not copied |
+The internal NVMe (`0000:06:00.0`, 476.9 GiB) carries the layout declared in
+`hosts/ember/storage-layout.nix`: a `hearth-esp` partition formatted as
+`HEARTH_EFI` at `/boot`, and a `hearth-system` Btrfs partition labelled
+`HEARTH_SYSTEM` providing the `@nix` and `@persist` subvolumes, while `/` stays
+a tmpfs. Those labels and the by-id identifiers are intentional compatibility
+state; do not rename or re-partition them.
 
-No serial number, WWN, filesystem UUID, or secret was collected. Device names
-are not stable identities.
+No serial number, WWN, filesystem UUID or secret is recorded here, and device
+names are not stable identities: the layout is bound by declaration and label,
+never by `/dev/sdX`.
+
+## Hardware report (nixos-facter)
+
+`hosts/ember/hardware.nix` activates `nixos-facter` automatically once a report
+exists next to it. Generate the report on the installed host, as root:
+
+```sh
+sudo nixos-facter --hardware cpu,memory,pci,bios -o hosts/ember/facter.json
+```
+
+The restricted probe set deliberately omits serials, MAC addresses and block
+device paths, so the report can stay in the repository without tripping the
+static path scan.
+
+Then re-run `just check` and rebuild the real target. Without the file the
+integration is inert, so the hand-written hardware settings keep applying.
+The report records hardware model and PCI identities, not serial numbers, MAC
+addresses, block device paths or account data.
 
 ## Evidence limits
 

@@ -1,8 +1,8 @@
 # Ember implementation instructions
 
-Current plan: `../plan/04-ember-emberlight-desktop-migration.md`. Read current
-`docs/phase4-status.md` and `docs/phase4-migration.md` before changing deployment
-or state handling. Older phase reports are historical evidence, not current status.
+Current plan: `../plan/04-ember-emberlight-desktop-migration.md`. Read
+`docs/deployment.md` before changing deployment or state handling; current
+behaviour lives in `docs/architecture.md` and `docs/operations.md`.
 
 ## Current ownership
 
