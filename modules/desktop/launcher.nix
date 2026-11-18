@@ -26,7 +26,7 @@ in
         };
         border = {
           width = 3;
-          radius = 0;
+          radius = 10;
         };
         colors = {
           background = hex "base00";
