@@ -36,12 +36,11 @@
   };
 
   # No unneeded network, printing, container, firmware-update, or desktop
-  # session services in phase 1.
+  # session services in phase 1. QEMU/KVM guests live in virtualisation.nix.
   services.openssh.enable = false;
   services.avahi.enable = false;
   services.printing.enable = false;
   services.fwupd.enable = false;
   virtualisation.docker.enable = false;
   virtualisation.podman.enable = false;
-  virtualisation.libvirtd.enable = false;
 }

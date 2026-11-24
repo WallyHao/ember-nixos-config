@@ -17,6 +17,7 @@
     extraGroups = [
       "wheel"
       "networkmanager"
+      "libvirtd"
     ];
     initialHashedPassword = import ../users/wallyhao/bootstrap-password.nix;
     homeModule = ../users/wallyhao/home.nix;

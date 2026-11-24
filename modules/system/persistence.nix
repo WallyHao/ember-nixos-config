@@ -19,6 +19,7 @@ let
     "${persistRoot}/var/lib/tlp"
     "${persistRoot}/var/lib/systemd"
     "${persistRoot}/var/lib/systemd/timers"
+    "${persistRoot}/var/lib/libvirt"
     "${persistRoot}/var/log"
     "${persistRoot}/var/log/journal"
     "${persistRoot}${home}"
@@ -56,9 +57,21 @@ in
         directory = "/var/lib/tlp";
         mode = "0755";
       }
+      # systemd-creds stores its host key in /var/lib/systemd/credential.secret
+      # and only uses it when that directory is on persistent media. The tmpfs
+      # root otherwise makes virt-secret-init-encryption.service fail before
+      # libvirtd can start.
       {
-        directory = "/var/lib/systemd/timers";
+        directory = "/var/lib/systemd";
+        inInitrd = true;
         mode = "0755";
+      }
+      # Guest disks, NVRAM, saved state, generated libvirt configs and the
+      # default-network autostart flag all live under /var/lib/libvirt. The
+      # root filesystem is tmpfs, so the whole tree must survive reboots.
+      {
+        directory = "/var/lib/libvirt";
+        mode = "0711";
       }
       {
         directory = "/var/log/journal";
@@ -76,12 +89,6 @@ in
       {
         file = "/etc/machine-id";
         inInitrd = true;
-      }
-      {
-        file = "/var/lib/systemd/random-seed";
-        how = "symlink";
-        inInitrd = true;
-        configureParent = true;
       }
     ];
   };

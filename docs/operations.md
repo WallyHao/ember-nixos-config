@@ -224,6 +224,59 @@ journal reports the bind failure; it never falls back to another port.
 - Session menu: `ember-session` with Fuzzel confirmation for logout, reboot,
   and poweroff.
 
+## Virtual machines
+
+libvirt manages QEMU/KVM guests and `virt-manager` is the desktop front end.
+The account is in the `libvirtd` group, which Polkit uses to allow the system
+connection (`qemu:///system`). Group membership is picked up by new login
+sessions, so log out and back in after the first activation.
+
+```sh
+virsh -c qemu:///system list --all
+virt-manager
+```
+
+Guest disks, NVRAM and saved state live under `/var/lib/libvirt`, which is
+preserved on `/persist`; a reboot does not lose a VM. The files inside are
+ordinary data: back up the images like any other file, and keep the repository
+root free of `*.qcow2` files.
+
+libvirt 12.8 enables `virt-secret-init-encryption.service`, which creates
+`/var/lib/libvirt/secrets/secrets-encryption-key` with `systemd-creds`.
+`systemd-creds` only uses its host key when `/var/lib/systemd` is on persistent
+media. The tmpfs root therefore needs `/var/lib/systemd` preserved entire,
+including `credential.secret`; keeping only its `timers` and `random-seed`
+children makes activation fail with:
+
+```text
+systemd-creds[...]: TPM2 not available and host key located on temporary file system, no encryption key available.
+```
+
+If that failure appears during the first switch to a generation that adds
+libvirt, bind the persistent directory before retrying once:
+
+```sh
+sudo mkdir -p /persist/var/lib/systemd
+sudo mount --bind /persist/var/lib/systemd /var/lib/systemd
+sudo systemctl restart virt-secret-init-encryption.service
+```
+
+Then rerun the activation. The reboot that follows uses the preservation mount
+declared in `modules/system/persistence.nix`.
+
+The default NAT network is defined but not started automatically until the
+one-time autostart flag is set. Do this once so guests with networking start
+without manual steps:
+
+```sh
+sudo virsh net-autostart default
+sudo virsh net-start default
+```
+
+Remote graphical output uses the default SPICE/VNC settings. USB redirection
+and TPM 2.0 emulation are not enabled; add `virtualisation.spiceUSBRedirection`
+or `virtualisation.libvirtd.qemu.swtpm.enable` only when a guest needs them.
+
 ## Storage and removable drives
 
 `udisks2` runs system-wide and `udiskie` runs in the user session. A mountable
