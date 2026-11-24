@@ -1,24 +1,24 @@
 # Gaming
 
-Status: opt-in, disabled on this host. `hosts/ember/default.nix` sets
-`ember.gaming.enable = false`, so Steam, GE-Proton and the rest of the stack are
-not in the current system closure. The stack is wired into the real system
-assembly and the eval contracts; VM checks disable it because they have no real
-GPU, and no frame rate, temperature or battery result has been measured.
+Status: enabled on this host. `hosts/ember/default.nix` sets
+`ember.gaming.enable = true`, so Steam, GE-Proton and the rest of the stack are
+part of the system closure. The stack is wired into the real system assembly and
+the eval contracts; VM checks disable it because they have no real GPU, and no
+frame rate, temperature or battery result has been measured.
 
-To opt back in:
+To turn it off:
 
 ```nix
 # hosts/ember/default.nix
-ember.gaming.enable = true;
+ember.gaming.enable = false;
 ```
 
 ```sh
 sudo nixos-rebuild switch --flake /persist/home/wallyhao/Workspace/ember-nixos-config#ember
 ```
 
-That pulls the Steam/GE-Proton closure back into the system; the first rebuild
-after the switch rebuilds it. Nothing below is active until then.
+Turning it back on re-adds the Steam/GE-Proton closure; the next rebuild after
+the switch builds it. Nothing below is usable until then.
 
 ## Installed components
 
@@ -30,7 +30,7 @@ after the switch rebuilds it. Nothing below is active until then.
 | GameMode | Scheduling priority for the launched game | system |
 | Gamescope | Nested fullscreen compositor, cursor grab, FSR upscaling | system |
 | MangoHud | FPS/frame-time/GPU overlay | system |
-| `nvidia-offload` | PRIME render offload wrapper for the RTX 4060 | system (NVIDIA module) |
+| `nvidia-offload` | PRIME render offload wrapper for the RTX 4060 (ember only) | system (NVIDIA module) |
 | On-demand VRR | Variable refresh only while a game window is visible | Home Manager Niri config |
 
 Steam is a system component, not a profile package: the `steam` wrapper needs
@@ -40,10 +40,16 @@ that `programs.steam` wires up. Do not add `steam` to
 
 ## Hybrid graphics
 
-The Intel iGPU remains the display GPU. The RTX 4060 is a PRIME offload
-device; a game that is not told to use it renders on the iGPU.
+This section applies to `ember`, the Intel/NVIDIA laptop. Its Intel iGPU
+remains the display GPU; the RTX 4060 is a PRIME offload device, so a game
+that is not told to use it renders on the iGPU.
 
-Two supported ways to put a game on the RTX 4060:
+`forge` has the opposite layout: the RTX 3090 drives the display and
+`ember.gaming.nvidiaOffload = false` removes the offload variables and the
+`nvidia-offload` wrapper. Steam and games use the primary GPU without extra
+environment.
+
+Two supported ways to put a game on the RTX 4060 on `ember`:
 
 ```sh
 # Whole Steam session on the dGPU. Every game launched from this Steam
@@ -61,13 +67,14 @@ __NV_PRIME_RENDER_OFFLOAD=1 __NV_PRIME_RENDER_OFFLOAD_PROVIDER=NVIDIA-G0 __GLX_V
 
 The second form is the default recommendation for battery life: only the game
 wakes the dGPU. `nvidia-offload` is provided by
-`hardware.nvidia.prime.offload.enableOffloadCmd` in `modules/gaming.nix` for
-terminal use, and GameMode/MangoHud are also installed into Steam's FHS runtime
-through `programs.steam.extraPackages`.
+`hardware.nvidia.prime.offload.enableOffloadCmd` in `modules/gaming.nix` when
+`ember.gaming.nvidiaOffload` is enabled for the host, and GameMode/MangoHud are
+also installed into Steam's FHS runtime through
+`programs.steam.extraPackages`.
 
-Gamescope's system wrapper already exports the same four offload variables, so
-a game launched through gamescope does not need an additional
-`nvidia-offload`.
+Gamescope's system wrapper exports the same four offload variables only when
+the host enables `ember.gaming.nvidiaOffload`, so a game launched through
+gamescope on `ember` does not need an additional `nvidia-offload`.
 
 ## Steam setup
 

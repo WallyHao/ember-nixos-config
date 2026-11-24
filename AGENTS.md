@@ -6,8 +6,10 @@ behaviour lives in `docs/architecture.md` and `docs/operations.md`.
 
 ## Current ownership
 
-- Canonical config/hostname/options: Ember / ember / ember.*. User remains
-  wallyhao, UID 1000, home /home/wallyhao; stateVersion and passwords unchanged.
+- Canonical config/options: Ember / ember.*. Hosts are `ember` (laptop) and
+  `forge` (AMD/RTX 3090 desktop); hardware is selected explicitly through
+  `inventory.hosts.<name>.hardwareModules`. User remains wallyhao, UID 1000,
+  home /home/wallyhao; stateVersion and passwords unchanged.
 - Stylix owns the Emberlight colour source. Waybar/Fuzzel/Mako/Niri/Fcitx5
   reproduce current Folio appearance with colour-only changes, not Hearth styles.
 - Noctalia is retired. Its persistent data is retained only for rollback.

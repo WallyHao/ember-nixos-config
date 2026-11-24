@@ -301,14 +301,16 @@ internal data disk at a fixed path before login, add a declarative
 
 ## Gaming
 
-The stack is off by default on this host (`ember.gaming.enable = false` in
-`hosts/ember/default.nix`); enable it and rebuild before use. When enabled,
-Steam, GE-Proton, GameMode, Gamescope, MangoHud, and `xwayland-satellite` are
-system packages. The Steam library is preserved at
-`/persist/home/wallyhao/.local/share/Steam`. Launch `nvidia-offload steam` for a
-whole session, or use the per-game offload environment from the guide, to
-render on the RTX 4060. Launch options, Proton selection, VRR, and
-compatibility limits are in [the gaming notes](gaming.md).
+The stack is enabled on both hosts (`ember.gaming.enable = true` in
+`hosts/ember/default.nix` and `hosts/forge/default.nix`); rebuild before first
+use. Steam, GE-Proton, GameMode, Gamescope, MangoHud, and `xwayland-satellite`
+are system packages. The Steam library is preserved at
+`/persist/home/wallyhao/.local/share/Steam`. On `ember`, launch
+`nvidia-offload steam` for a whole session, or use the per-game offload
+environment from the guide, to render on the RTX 4060. On `forge` the RTX 3090
+is the display GPU and no offload wrapper is installed. Launch options,
+Proton selection, VRR, and compatibility limits are in
+[the gaming notes](gaming.md).
 
 If the session fails, switch to tty2 and use the normal password login. Inspect
 `systemctl status greetd`, `systemctl --user status niri.service`, the failed

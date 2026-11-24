@@ -1,7 +1,44 @@
 # Hardware
 
-Observed hardware facts for the laptop. They describe the machine; the storage
-layout is declared separately in `hosts/ember/storage-layout.nix`.
+Ember supports two physical machines. Hardware policy is split into a shared
+driver closure (`hosts/hardware/portable.nix`) and a per-host overlay
+(`hosts/<name>/hardware.nix`). The inventory selects both explicitly; Nix
+evaluation never probes the running machine.
+
+| Host | Machine | CPU | Graphics | Role |
+| --- | --- | --- | --- | --- |
+| `ember` | Lenovo Legion Y7000 IRX9 (83JJ) | Intel Core i7-13650HX | Intel iGPU + RTX 4060 Laptop | hybrid laptop |
+| `forge` | MSI MAG B650M MORTAR WIFI | AMD Ryzen 7 9700X | AMD integrated graphics + RTX 3090 | desktop |
+
+The shared closure enables both Intel and AMD microcode, `i915` and `amdgpu`
+early KMS, the 32-bit graphics stack, and one NVIDIA open kernel module with
+DRM modesetting. It deliberately contains no fixed PCI addresses, PRIME wiring,
+DRM card numbers or render-device overrides. PCI matching selects the driver.
+
+## Shared profile
+
+`hosts/hardware/portable.nix` provides:
+
+- Intel and AMD CPU microcode;
+- `i915` and `amdgpu` in the initrd;
+- `hardware.graphics` including 32-bit support;
+- `nvidia`, `amdgpu` and `modesetting` video drivers;
+- `hardware.nvidia.open`, `hardware.nvidia.modesetting` and `nvidiaSettings`;
+- redistributable firmware.
+
+Anything that depends on the physical machine stays in the host overlay:
+
+- observed facts and `nixos-facter` report;
+- PRIME offload bus IDs and fine-grained power management;
+- a fixed DRM device path to ignore;
+- Intel-only Wi-Fi modules;
+- the CPU-specific KVM module;
+- TLP platform profiles and battery settings.
+
+## Ember observed hardware
+
+These facts describe the laptop. The storage layout is declared separately in
+`hosts/ember/storage-layout.nix`.
 
 | Item | Observed |
 | --- | --- |
@@ -26,36 +63,55 @@ The old system's NVIDIA version was 595.112.07. The new configuration does not
 pin that version and uses the locked nixpkgs default branch with the open
 kernel module.
 
-## PRIME bus IDs
+### Ember-specific policy
 
-NixOS `hardware.nvidia.prime` uses decimal PCI values. For the observed
-addresses the decimal and hexadecimal digits coincide:
+- PRIME render offload: Intel `PCI:0:2:0`, NVIDIA `PCI:1:0:0`; the iGPU drives
+  the panel and the dGPU renders on request.
+- Fine-grained NVIDIA runtime power management.
+- `nvidia_drm.fbdev=0`, NVMe APST and HDA runtime-suspend parameters.
+- Intel Wi-Fi components loaded after the full firmware tree.
+- Niri ignores `/dev/dri/by-path/pci-0000:01:00.0-render` so the dGPU can
+  runtime-suspend while idle.
+- `kvm-intel` is loaded explicitly; TLP keeps the Lenovo platform profile and
+  battery policy.
 
-- Intel: `PCI:0:2:0`
-- NVIDIA: `PCI:1:0:0`
+## Forge recorded hardware
 
-These values are written only in `hosts/ember/hardware.nix`.
+The desktop is recorded from the Folio configuration. These values are
+declaration data, not a fresh observation from this repository:
 
-## Storage
+| Item | Recorded |
+| --- | --- |
+| Mainboard | MSI MAG B650M MORTAR WIFI |
+| CPU | AMD Ryzen 7 9700X, 8 cores / 16 threads |
+| Integrated graphics | AMD Radeon graphics (Ryzen 7000/9000 desktop iGPU) |
+| Discrete GPU | NVIDIA RTX 3090 |
+| Wi-Fi | RZ616 / MediaTek MT7922 class adapter |
+| Ethernet | Realtek RTL8125 2.5GbE |
+| Storage | Not inspected; `hosts/forge/storage-spec.nix` stays unbound |
 
-The internal NVMe (`0000:06:00.0`, 476.9 GiB) carries the layout declared in
-`hosts/ember/storage-layout.nix`: a `hearth-esp` partition formatted as
-`HEARTH_EFI` at `/boot`, and a `hearth-system` Btrfs partition labelled
-`HEARTH_SYSTEM` providing the `@nix` and `@persist` subvolumes, while `/` stays
-a tmpfs. Those labels and the by-id identifiers are intentional compatibility
-state; do not rename or re-partition them.
+### Forge-specific policy
 
-No serial number, WWN, filesystem UUID or secret is recorded here, and device
-names are not stable identities: the layout is bound by declaration and label,
-never by `/dev/sdX`.
+- No PRIME wiring: PCI matching loads `amdgpu` and `nvidia`; Niri keeps every
+  DRM device visible because the RTX 3090 drives the display.
+- No fine-grained NVIDIA power management and no hybrid offload wrapper.
+- `kvm-amd` is loaded explicitly.
+- TLP applies mains-only AMD P-State/EPP settings; no battery or ACPI platform
+  profile keys are declared.
+
+If the monitors are later moved to the motherboard outputs, add PRIME offload
+with the desktop's AMD bus ID in `hosts/forge/hardware.nix` and set
+`ember.gaming.nvidiaOffload = true`. CUDA/compute workloads do not require that
+change. Do not copy the laptop's Intel bus IDs.
 
 ## Hardware report (nixos-facter)
 
-`hosts/ember/hardware.nix` activates `nixos-facter` automatically once a report
-exists next to it. Generate the report on the installed host, as root:
+Each host activates `nixos-facter` automatically once a report exists next to
+its hardware overlay. Generate the report on the installed host, as root:
 
 ```sh
 sudo nixos-facter --hardware cpu,memory,pci,bios -o hosts/ember/facter.json
+sudo nixos-facter --hardware cpu,memory,pci,bios -o hosts/forge/facter.json
 ```
 
 The restricted probe set deliberately omits serials, MAC addresses and block
@@ -67,9 +123,31 @@ integration is inert, so the hand-written hardware settings keep applying.
 The report records hardware model and PCI identities, not serial numbers, MAC
 addresses, block device paths or account data.
 
+## Storage
+
+The internal NVMe of the laptop (`0000:06:00.0`, 476.9 GiB) carries the layout
+declared in `hosts/ember/storage-layout.nix`: a `hearth-esp` partition formatted
+as `HEARTH_EFI` at `/boot`, and a `hearth-system` Btrfs partition labelled
+`HEARTH_SYSTEM` providing the `@nix` and `@persist` subvolumes, while `/` stays
+a tmpfs. Those labels and the by-id identifiers are intentional compatibility
+state; do not rename or re-partition them.
+
+The desktop disk is a different physical device and has not been inspected.
+`hosts/forge/storage-spec.nix` keeps `targetDisk`, `layoutModule` and
+`layoutConfirmed` unset, so `nixosConfigurations.forge` is not exported until an
+operator records a reviewed layout. Forge is intended to use the same
+tmpfs-root, `@nix`/`@persist` preservation model as the laptop; a conventional
+persistent root requires a different layout module and adjustments to
+`modules/system/persistence.nix`. Do not copy the laptop's identifiers or
+labels to the desktop.
+
+No serial number, WWN, filesystem UUID or secret is recorded here, and device
+names are not stable identities: layouts are bound by declaration and label,
+never by `/dev/sdX`.
+
 ## Evidence limits
 
 The observed `runtime_status`, platform profile, and `power_now` are transient.
 They do not prove the new configuration will enter the same GPU runtime-suspend
 state or achieve any measured power result. GPU power, suspend/resume, boot
-time, and idle memory remain to be measured on the eventual installed system.
+time, and idle memory remain to be measured on both installed systems.

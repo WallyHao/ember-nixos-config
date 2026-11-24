@@ -1,38 +1,49 @@
 # Architecture
 
-This document describes the current Ember configuration. Ember has one host
-(`ember`) and one normal user (`wallyhao`); the same assembly is used for the
-real host, `system-preview`, and the VM checks.
+This document describes the current Ember configuration. Ember has two hosts
+(`ember`, the Intel/NVIDIA laptop, and `forge`, the AMD/NVIDIA desktop) and one
+normal user (`wallyhao`); the same assembly is used for the real hosts,
+`system-preview`, and the VM checks.
 
 ## Layering
 
 ```text
 inventory/
-  default.nix              host/user data and module paths
+  default.nix              host/user data, hardware modules and module paths
   schema.nix               structural validation and storage gate
 
 lib/
   eval-inventory.nix       validates and evaluates inventory
   mk-host.nix              the system assembly function
-  deployment.nix           serializable deployment state
+  deployment.nix           serializable per-host deployment state
+
+hosts/hardware/
+  portable.nix             machine-independent Intel/AMD/NVIDIA driver closure
 
 hosts/ember/
-  default.nix              host policy; imports the laptop suite
-  hardware.nix             Intel/NVIDIA, initrd modules, firmware
+  default.nix              host policy; imports the workstation suite
+  hardware.nix             observed facts, PRIME, DRM path, laptop initrd
   power.nix                host-specific TLP parameters
-  nixos-cli.nix            points the CLI to the Ember checkout
   storage-spec.nix         target disk, layout module, confirmation
   storage.nix              binds storage-spec to the layout
   storage-layout.nix       disko partitions, Btrfs subvolumes, tmpfs root
 
+hosts/forge/
+  default.nix              host policy; imports the workstation suite
+  hardware.nix             observed facts, AMD KVM, desktop initrd
+  power.nix                desktop TLP parameters
+  storage-spec.nix         unbound until the desktop disk is inspected
+
 suites/nixos/
   base.nix                 system, network, power, appearance
   desktop.nix              graphical session + Home Manager bridge
-  laptop.nix               base + desktop, TTY-only host policy
+  workstation.nix          base + desktop, TTY-only host policy
 
 modules/
-  system/                  identity, accounts, boot, platform, foundation,
-                           memory, persistence
+  system/                  identity, accounts, boot, platform, hardware
+                           options, virtualisation, foundation, memory,
+                           persistence
+  system/nixos-cli.nix     shared CLI checkout path and refresh wrapper
   network/                 NetworkManager, resolved, firewall, Mihomo proxy
   power.nix                TLP and power policy
   session/                 graphical session, PAM, portals, audio,
@@ -85,16 +96,23 @@ them.
 `flake.nix` imports `flake/hosts.nix`, `flake/modules.nix`,
 `flake/checks.nix`, and `flake/development.nix` through flake-parts.
 
-The real system is assembled as:
+The real systems are assembled from:
 
 ```text
-inventory.hosts.ember
+inventory.hosts.<name>
   ├─ system, hostName, stateVersion
-  ├─ physicalHardwareModule
-  ├─ hostModule = hosts/ember
+  ├─ hardwareModules = [ shared portable closure, host overlay ]
+  ├─ hostModule = hosts/<name>
   ├─ users = [ "wallyhao" ]
-  └─ storage = hosts/ember/storage-spec.nix
+  └─ storage = hosts/<name>/storage-spec.nix
+```
 
+`inventory.hosts.ember` uses `hosts/hardware/portable.nix` plus
+`hosts/ember/hardware.nix`; `inventory.hosts.forge` uses the same shared
+closure plus `hosts/forge/hardware.nix`. Hardware selection is explicit and is
+never inferred during evaluation.
+
+```text
 inventory.users.wallyhao
   ├─ uid, home, login shell, groups
   ├─ initialHashedPassword
@@ -111,7 +129,7 @@ preservation.nixosModules.preservation
 stylix.nixosModules.stylix
 nixos-cli.nixosModules.nixos-cli
 host.hostModule
-hardwareModule
+hardwareModules...
 identityModule
 home-manager.nixosModules.home-manager
 users/wallyhao/persistence.nix
@@ -141,9 +159,9 @@ same identity into Home Manager.
 ## Host path
 
 ```text
-inventory.hosts.ember.hostModule
-  -> hosts/ember/default.nix
-     -> suites/nixos/laptop.nix
+inventory.hosts.<name>.hostModule
+  -> hosts/<name>/default.nix
+     -> suites/nixos/workstation.nix
         -> suites/nixos/base.nix
            -> modules/system
            -> modules/network
@@ -153,17 +171,18 @@ inventory.hosts.ember.hostModule
            -> modules/session
            -> modules/gaming.nix
            -> modules/system/home-manager.nix
-     -> hosts/ember/power.nix
-     -> hosts/ember/nixos-cli.nix
+     -> hosts/<name>/power.nix
 ```
 
-`hosts/ember/hardware.nix`, `storage-spec.nix`, `storage.nix`, and
-`storage-layout.nix` are passed separately by `mk-host.nix`.
+`hosts/<name>/hardware.nix`, `storage-spec.nix`, `storage.nix`, and
+`storage-layout.nix` are passed separately by `mk-host.nix`. The shared
+`hosts/hardware/portable.nix` leaves PRIME, fixed DRM paths and CPU-specific
+KVM modules to `hosts/<name>/hardware.nix`.
 
 ## System and user ownership
 
 System modules own boot, accounts, networking, proxy, power, persistence,
-login, portals, audio, and the system Stylix configuration.
+login, portals, audio, virtualisation, and the system Stylix configuration.
 
 Home Manager modules own the user Niri configuration, Waybar, Fuzzel, Mako,
 Foot, Fcitx5, clipboard, lock/idle services, automatic removable-disk
@@ -199,11 +218,13 @@ back into the tmpfs root, including:
 /persist/var/lib/userborn
 /persist/var/lib/bluetooth
 /persist/var/lib/tlp
-/persist/var/lib/systemd/{timers,random-seed}
+/persist/var/lib/systemd
+/persist/var/lib/libvirt
 /persist/var/log/journal
 /persist/etc/NetworkManager/system-connections
 /persist/etc/machine-id
 /persist/home/wallyhao/Workspace
+/persist/home/wallyhao/Stash
 /persist/home/wallyhao/Documents
 /persist/home/wallyhao/Downloads
 /persist/home/wallyhao/Pictures
@@ -219,22 +240,26 @@ preservation early mounts.
 
 | Output | Current behavior |
 | --- | --- |
-| `nixosConfigurations.ember` | real host; only when `deployment.installable` |
+| `nixosConfigurations.ember` | real laptop; only when its deployment is installable |
+| `nixosConfigurations.forge` | real desktop; only when its disk/layout are confirmed |
 | `nixosConfigurations.hearth` | compatibility alias for `ember` |
 | `nixosModules.default` | preservation + capability modules |
 | `nixosModules.emberLaptop` | portable host modules without storage |
 | `nixosModules.hearthLaptop` | compatibility alias |
-| `lib.ember.deployment` | serializable deployment state |
+| `lib.deployments.<host>` | per-host serializable deployment state |
+| `lib.ember.deployment` | compatibility alias for `lib.deployments.ember` |
 | `lib.hearth.deployment` | compatibility alias |
-| `packages.x86_64-linux.system-preview` | real hardware + fixture storage |
-| `checks.x86_64-linux.storage-layout` | storage binding + disko script parse |
+| `packages.x86_64-linux.system-preview` | laptop hardware + fixture storage |
+| `packages.x86_64-linux.system-preview-forge` | desktop hardware + fixture storage |
+| `checks.x86_64-linux.storage-layout` | ember storage binding + disko script parse |
+| `checks.x86_64-linux.hardware-profiles` | shared closure and both host overlays |
 | `checks.x86_64-linux.desktop-config` | Niri/Foot/NixVim config checks |
 | `checks.x86_64-linux.eval-contracts` | inventory, deployment and daemon-conflict gates |
 | `checks.x86_64-linux.vm-*` | accounts, persistence, offline boot, desktop, network |
 
 ## Deployment gate
 
-`lib/deployment.nix` derives `storageBound` from:
+`lib/deployment.nix` derives `storageBound` per host from:
 
 ```text
 targetDisk != null
@@ -242,7 +267,9 @@ layoutModule != null
 layoutConfirmed == true
 ```
 
-`nixosConfigurations.ember` is exported only when that condition holds.
-`system-preview` always uses `tests/fixtures/storage.nix` and never selects the
-real disk. VM tests use the fixtures under `tests/fixtures/`; no fixture value
-is written into `hosts/ember/storage-spec.nix`.
+`nixosConfigurations.<host>` is exported only when that host's condition holds.
+`forge` is deliberately unbound until its disk is inspected.
+`system-preview` and `system-preview-forge` always use
+`tests/fixtures/storage.nix` and never select a real disk. VM tests use the
+fixtures under `tests/fixtures/`; no fixture value is written into
+`hosts/<name>/storage-spec.nix`.

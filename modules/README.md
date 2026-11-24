@@ -5,7 +5,7 @@ single `default.nix` entry point; a simple module is one `.nix` file.
 
 | Module | Scope | Contents |
 | --- | --- | --- |
-| `system/` | NixOS | identity, accounts, boot, platform, foundation, memory, persistence |
+| `system/` | NixOS | identity, accounts, boot, platform, hardware options, virtualisation, nixos-cli, foundation, memory, persistence |
 | `network/` | NixOS | NetworkManager, resolved, firewall, Mihomo proxy |
 | `power.nix` | NixOS | TLP and power policy |
 | `session/` | NixOS | graphical session, PAM, portals, audio, system input method |

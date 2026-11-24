@@ -1,13 +1,26 @@
 # Deployment
 
-How to move this repository onto the internal disk of the laptop. Nothing here
-runs automatically, and none of it has been performed from this repository:
-the host has not been activated and the private Folio data has not been copied.
-Commands that install or activate need the operator's own decision and a fresh
-check of the running host and the target mounts.
+How to move this repository onto the internal disk of a supported machine.
+Nothing here runs automatically, and none of it has been performed from this
+repository: the laptop has not been activated, the desktop disk has not been
+inspected, and the private Folio data has not been copied. Commands that install
+or activate need the operator's own decision and a fresh check of the running
+host and the target mounts.
 
 The system toplevel used below must come from a build of this repository that
-you produced and verified, never from `system-preview`.
+you produced and verified, never from `system-preview` or
+`system-preview-forge`.
+
+## Supported hosts
+
+| Host | State |
+| --- | --- |
+| `ember` | Laptop disk bound and confirmed; deployment gated on the operator actually running it. |
+| `forge` | Desktop hardware recorded, but `hosts/forge/storage-spec.nix` is unbound. Inspect the disk, write a reviewed layout module, then set `targetDisk`, `layoutModule` and `layoutConfirmed = true`. |
+
+Adding another machine means adding an inventory host, a hardware overlay and a
+storage declaration. Do not reuse `ember` storage identifiers, PRIME bus IDs or
+the fixed Niri DRM path.
 
 ## 1. Mount the target and copy private data
 
@@ -103,6 +116,9 @@ the global trust configuration. `software-build` prints the store paths the
 offline profile install needs, so copying `software/bootstrap/packages` text
 alone is not enough.
 
+This example installs `ember`. For `forge`, use
+`path:.#nixosConfigurations.forge` and confirm its storage binding first.
+
 Keep the previous system generation and then unmount:
 
 ```sh
@@ -113,6 +129,28 @@ sudo umount -R /mnt
 Booting from the internal disk is the operator's decision; nothing here reboots.
 The installed system has hostname `ember`, login title `EMBERLIGHT`, user
 `wallyhao`, and the existing password and `stateVersion`.
+
+## Activating on an already-installed host
+
+`nixos apply` is the routine path only when the machine already boots the
+declared layout (tmpfs root, `/nix` and `/persist` on the declared disk). On
+`ember` the repository checkout is `/home/wallyhao/Workspace/ember-nixos-config`,
+which is what `programs.nixos-cli.settings.config_location` points at.
+
+Review the whole worktree first: `nixos apply` evaluates `path:` and therefore
+includes every tracked and untracked change, not only the last edit. Build
+without activating, then activate explicitly:
+
+```sh
+nix build --no-link --no-update-lock-file \
+  path:.#nixosConfigurations.ember.config.system.build.toplevel
+sudo nixos apply --no-update-lock-file
+```
+
+Keep the previous generation for rollback. A generation that only changes the
+initrd or kernel still needs a reboot before that part is exercised. Do not run
+`nixos apply` for `forge` until `nixosConfigurations.forge` exists; the unbound
+storage gate deliberately removes it.
 
 ## 5. After the first boot
 

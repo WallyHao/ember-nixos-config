@@ -1,13 +1,18 @@
 # Ember
 
-Ember is my personal NixOS and Home Manager configuration for one laptop: a Lenovo
-Legion Y7000 IRX9 running [Niri] on Wayland. It binds real hardware, storage and
-account data, so it is **not a general-purpose template**. Read it as a reference and
-take the parts that fit your own machine.
+Ember is my personal NixOS and Home Manager configuration for two machines: a
+Lenovo Legion Y7000 IRX9 laptop (`ember`) and an AMD Ryzen 7 9700X / RTX 3090
+desktop (`forge`), both running [Niri] on Wayland. It binds real hardware, storage
+and account data, so it is **not a general-purpose template**. Read it as a
+reference and take the parts that fit your own machine.
 
-- **System** — `nixosConfigurations.ember`, hostname `ember`, `stateVersion = "26.11"`.
-  A tmpfs root, Btrfs `@nix` / `@persist` subvolumes, `disko` for the layout and
-  `preservation` for state that must survive reboots.
+- **System** — `nixosConfigurations.ember` and `nixosConfigurations.forge`,
+  `stateVersion = "26.11"`. A tmpfs root, Btrfs `@nix` / `@persist` subvolumes,
+  `disko` for the layout and `preservation` for state that must survive reboots.
+  `forge` is exported only after its disk and layout are inspected and confirmed.
+- **Hardware** — one shared Intel/AMD/NVIDIA driver closure plus a per-host
+  overlay for PRIME, DRM and CPU-specific policy; evaluation never probes the
+  machine.
 - **Desktop** — Niri with Waybar, Fuzzel, Mako, Foot and Fcitx5/Rime. Stylix resolves
   the Emberlight palette; every managed component reads that one source.
 - **User software** — an independently locked Nix profile for CLI tools, OMP and Zen
@@ -17,18 +22,20 @@ take the parts that fit your own machine.
 
 | Path | Responsibility |
 | --- | --- |
-| `inventory/` | Host, user, storage and module paths, with structural validation |
-| `hosts/ember/` | Hardware, power, storage declaration and host policy |
-| `suites/nixos/` | Base, desktop and laptop compositions |
+| `inventory/` | Host, user, storage, hardware and module paths, with structural validation |
+| `hosts/hardware/` | Machine-independent Intel/AMD/NVIDIA driver closure |
+| `hosts/ember/` | Laptop hardware facts, PRIME, DRM path, power and storage |
+| `hosts/forge/` | Desktop hardware facts, AMD KVM, power and unbound storage |
+| `suites/nixos/` | Base, desktop and workstation compositions |
 | `modules/` | System, network, session, appearance, desktop, Niri, terminal, NixVim and program modules |
 | `users/wallyhao/` | Home Manager entry, preferences and persistence whitelist |
 | `software/` | Separate flake and lock for the user profile |
 | `tests/` | Evaluation contracts, fixtures and QEMU VM checks |
 
-`lib/mk-host.nix` assembles the same modules for the real host, `system-preview` and
-the VM tests. `nixosConfigurations.ember` is exported only when the target disk,
-layout module and confirmation are all present; otherwise only the portable
-`nixosModules.emberLaptop` and preview outputs exist.
+`lib/mk-host.nix` assembles the same modules for each real host, the two system
+previews and the VM tests. `nixosConfigurations.<host>` is exported only when that
+host's target disk, layout module and confirmation are all present; otherwise only
+the portable `nixosModules.emberLaptop` and preview outputs exist.
 
 ## Desktop
 
@@ -43,10 +50,11 @@ layout module and confirmation are all present; otherwise only the portable
 | Files and images | Yazi, udiskie auto-mount, imv, Satty screenshots |
 | Network | NetworkManager + systemd-resolved, Mihomo proxy, `file-drop` |
 | Audio | PipeWire and WirePlumber |
+| Virtual machines | libvirt + QEMU/KVM, `virt-manager`, KVM-accelerated |
 | Lock and idle | swaylock, swayidle and the `ember-lock` user service |
 
 The gaming stack (Steam, GE-Proton, GameMode, Gamescope, MangoHud and the NVIDIA
-offload wrapper) is opt-in and currently off in `hosts/ember/default.nix`.
+offload wrapper) is enabled in `hosts/ember/default.nix`; VM checks turn it off.
 
 ## Theme
 
@@ -76,22 +84,31 @@ user profile lives at `~/.local/state/nix/profiles/profile`; edit
 
 ## Deployment
 
-The configuration has been built and exercised in VMs, but it has **not** been
-installed or activated on the host yet. `system-preview` uses fixture storage and never
-selects the internal disk. Proxy subscriptions, saved network connections and other
-private runtime data are not part of this repository.
+The laptop configuration has been built and exercised in VMs, but it has **not**
+been installed or activated on the host yet. The desktop has not even had its disk
+inspected, so `nixosConfigurations.forge` is intentionally absent. Both system
+previews use fixture storage and never select a physical disk. Proxy subscriptions,
+saved network connections and other private runtime data are not part of this
+repository.
 
-Do not deploy this flake directly onto another machine. Start from `inventory/`,
-`hosts/ember/storage-spec.nix`, `hosts/ember/hardware.nix` and the account setup, then
-follow [`docs/deployment.md`](docs/deployment.md).
+The two hosts are supported; arbitrary machines are not. To adapt another machine,
+start from `inventory/`, add a `hosts/<name>/` overlay and storage declaration,
+then follow [`docs/deployment.md`](docs/deployment.md). Do not copy the laptop's
+disk identifiers, PRIME bus IDs or DRM path to another machine.
+
+The desktop closure can be evaluated and built without touching a disk:
+
+```sh
+nix build --no-link --no-update-lock-file path:.#packages.x86_64-linux.system-preview-forge
+```
 
 ## Checks
 
 `just check` runs nixfmt, deadnix, actionlint, ShellCheck, the CLI suite, repository
-scans and flake evaluation. CI repeats those checks and builds the system preview plus
-the storage, desktop and refresh checks on every push. The VM suite covers accounts,
-persistence, offline boot, desktop, user environment, connectivity and `file-drop`; it
-runs on manual dispatch.
+scans and flake evaluation. CI repeats those checks and builds the system previews
+plus the storage, desktop and refresh checks on every push. The VM suite covers
+accounts, persistence, offline boot, desktop, user environment, connectivity and
+`file-drop`; it runs on manual dispatch.
 
 ## Documentation
 
