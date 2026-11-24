@@ -8,6 +8,7 @@
     "powerstat"
     "intel-gpu-tools"
     "turbostat"
+    "speedtest-cli"
   ];
   allowedUnfree = [ ];
 }
