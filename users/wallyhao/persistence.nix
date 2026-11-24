@@ -17,6 +17,11 @@
       mode = "0700";
     }
     {
+      # The desktop app stores its settings and IndexedDB practice records here.
+      directory = ".local/share/qwerty-learner";
+      mode = "0700";
+    }
+    {
       # gh keeps the host registry (hosts.yml) and its config here. The OAuth
       # token lives in the keyring below, but without hosts.yml gh reports no
       # authenticated hosts on every boot.
@@ -95,6 +100,9 @@
       mode = "0700";
     }
     "Workspace"
+    # Staging area for files that may or may not be kept; not part of any
+    # project tree, but must survive the tmpfs root.
+    "Stash"
     "Documents"
     "Downloads"
     "Pictures"

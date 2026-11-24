@@ -1,0 +1,242 @@
+--- a/src/index.css
++++ b/src/index.css
+@@ -92,14 +92,28 @@
+       shadow-md dark:bg-gray-800 dark:text-gray-300;
+   }
+ 
++  .my-btn-primary,
++  .my-btn-secondary {
++    @apply flex items-center justify-center rounded-lg px-6 py-1 text-lg focus:outline-none;
++  }
++
+   .my-btn-primary {
+-    @apply flex items-center justify-center rounded-lg bg-indigo-400 px-6 py-1 text-lg text-white hover:opacity-90 focus:outline-none dark:text-opacity-80;
++    @apply bg-indigo-400 text-white enabled:hover:opacity-90;
++  }
++
++  .my-btn-secondary {
++    @apply bg-gray-100 text-gray-900 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-50 dark:hover:bg-gray-600;
++  }
++
++  .my-btn-primary:disabled,
++  .my-btn-secondary:disabled {
++    @apply cursor-not-allowed bg-gray-200 text-gray-900 opacity-100 dark:bg-gray-700 dark:text-gray-50;
+   }
+ 
+   .my-btn-info-panel {
+     @apply mt-3 inline-flex w-full justify-center rounded-md px-3 py-2 text-sm
+       font-semibold text-white shadow-sm transition-colors focus:outline-none
+-      dark:bg-opacity-70 dark:text-opacity-80 sm:ml-3 sm:mt-0 sm:w-auto
++      sm:ml-3 sm:mt-0 sm:w-auto
+       sm:text-sm;
+   }
+ 
+--- a/src/pages/Typing/components/StartButton/index.tsx
++++ b/src/pages/Typing/components/StartButton/index.tsx
+@@ -46,8 +46,8 @@
+       >
+         <button
+           className={`${
+-            state.isTyping ? 'bg-gray-400  dark:bg-gray-700 dark:hover:bg-gray-500' : 'bg-indigo-500'
+-          } my-btn-primary w-20 shadow`}
++            state.isTyping ? 'my-btn-secondary' : 'my-btn-primary bg-indigo-500'
++          } w-20 shadow`}
+           type="button"
+           onClick={onToggleIsTyping}
+           aria-label={state.isTyping ? '暂停' : '开始'}
+@@ -58,8 +58,8 @@
+           <div className="absolute bottom-0 flex w-20 justify-center" ref={refs.setFloating} {...getFloatingProps()}>
+             <button
+               className={`${
+-                state.isTyping ? 'bg-gray-500 dark:bg-gray-700 dark:hover:bg-gray-500 ' : 'bg-indigo-400 '
+-              } my-btn-primary mb-1 mt-1 w-18  transition-colors duration-200`}
++                state.isTyping ? 'my-btn-secondary' : 'my-btn-primary'
++              } mb-1 mt-1 w-18  transition-colors duration-200`}
+               type="button"
+               onClick={onClickRestart}
+               aria-label={'重新开始'}
+--- a/src/pages/Typing/components/ResultScreen/index.tsx
++++ b/src/pages/Typing/components/ResultScreen/index.tsx
+@@ -299,7 +299,7 @@
+                 <>
+                   <Tooltip content="快捷键：shift + enter">
+                     <button
+-                      className="my-btn-primary h-12 border-2 border-solid border-gray-300 bg-white text-base text-gray-700 dark:border-gray-700 dark:bg-gray-600 dark:text-white dark:hover:bg-gray-700"
++                      className="my-btn-secondary h-12 border-2 border-solid border-gray-300 text-base dark:border-gray-600"
+                       type="button"
+                       onClick={dictationButtonHandler}
+                       title="默写本章节"
+@@ -309,7 +309,7 @@
+                   </Tooltip>
+                   <Tooltip content="快捷键：space">
+                     <button
+-                      className="my-btn-primary h-12 border-2 border-solid border-gray-300 bg-white text-base text-gray-700 dark:border-gray-700 dark:bg-gray-600 dark:text-white dark:hover:bg-gray-700"
++                      className="my-btn-secondary h-12 border-2 border-solid border-gray-300 text-base dark:border-gray-600"
+                       type="button"
+                       onClick={repeatButtonHandler}
+                       title="重复本章节"
+--- a/src/pages/Typing/components/Setting/DataSetting.tsx
++++ b/src/pages/Typing/components/Setting/DataSetting.tsx
+@@ -77,7 +77,7 @@
+           </div>
+ 
+           <button
+-            className="my-btn-primary ml-4 disabled:bg-gray-300"
++            className="my-btn-primary ml-4"
+             type="button"
+             onClick={onClickExport}
+             disabled={isExporting}
+@@ -106,7 +106,7 @@
+           </div>
+ 
+           <button
+-            className="my-btn-primary ml-4 disabled:bg-gray-300"
++            className="my-btn-primary ml-4"
+             type="button"
+             onClick={onClickImport}
+             disabled={isImporting}
+--- a/src/pages/Typing/components/Setting/ViewSetting.tsx
++++ b/src/pages/Typing/components/Setting/ViewSetting.tsx
+@@ -78,7 +78,7 @@
+             </div>
+           </div>
+         </div>
+-        <button className="my-btn-primary ml-4 disabled:bg-gray-300" type="button" onClick={onResetFontSize} title="重置字体设置">
++        <button className="my-btn-primary ml-4" type="button" onClick={onResetFontSize} title="重置字体设置">
+           重置字体设置
+         </button>
+       </div>
+--- a/src/pages/ErrorBook/DropdownExport.tsx
++++ b/src/pages/ErrorBook/DropdownExport.tsx
+@@ -102,7 +102,7 @@
+     <div className="z-10">
+       <DropdownMenu.Root>
+         <DropdownMenu.Trigger asChild>
+-          <button className="my-btn-primary h-8 shadow transition hover:bg-indigo-600 disabled:opacity-50" disabled={isExporting}>
++          <button className="my-btn-primary h-8 shadow transition enabled:hover:bg-indigo-600" disabled={isExporting}>
+             {isExporting ? '导出中...' : '导出'}
+           </button>
+         </DropdownMenu.Trigger>
+--- a/src/components/ui/button.tsx
++++ b/src/components/ui/button.tsx
+@@ -4,14 +4,14 @@
+ import * as React from 'react'
+ 
+ const buttonVariants = cva(
+-  'inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-950 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 dark:ring-offset-slate-950 dark:focus-visible:ring-slate-300',
++  'inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-950 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:bg-gray-200 disabled:text-gray-900 dark:disabled:bg-gray-700 dark:disabled:text-gray-50 dark:ring-offset-slate-950 dark:focus-visible:ring-slate-300',
+   {
+     variants: {
+       variant: {
+-        default: 'bg-indigo-500 shadow text-white hover:opacity-90  dark:text-opacity-80 focus:outline-none rounded-lg',
++        default: 'bg-indigo-500 shadow text-white hover:opacity-90 focus:outline-none rounded-lg',
+         destructive: 'bg-red-500 text-slate-50 hover:bg-red-500/90 dark:bg-red-900 dark:text-slate-50 dark:hover:bg-red-900/90',
+         outline:
+-          'border border-slate-200 bg-white hover:bg-slate-100 hover:text-slate-900 dark:border-slate-800 dark:bg-slate-950 dark:hover:bg-slate-800 dark:hover:text-slate-50',
++          'border border-slate-200 bg-white text-slate-900 hover:bg-slate-100 hover:text-slate-900 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-50 dark:hover:bg-slate-800 dark:hover:text-slate-50',
+         secondary: 'bg-slate-100 text-slate-900 hover:bg-slate-100/80 dark:bg-slate-800 dark:text-slate-50 dark:hover:bg-slate-800/80',
+         ghost: 'hover:bg-slate-100 hover:text-slate-900 dark:hover:bg-slate-800 dark:hover:text-slate-50',
+         link: 'text-slate-900 underline-offset-4 hover:underline dark:text-slate-50',
+--- a/src/pages/Typing/components/Setting/index.tsx
++++ b/src/pages/Typing/components/Setting/index.tsx
+@@ -68,7 +68,7 @@
+               >
+                 <Dialog.Panel className="flex w-200 flex-col overflow-hidden rounded-2xl bg-white p-0 shadow-xl dark:bg-gray-800">
+                   <div className="relative flex h-22 items-end justify-between rounded-t-lg border-b border-neutral-100 bg-stone-50 px-6 py-3 dark:border-neutral-700 dark:bg-gray-900">
+-                    <span className="text-3xl font-bold text-gray-600">设置</span>
++                    <span className="text-3xl font-bold text-gray-600 dark:text-gray-100">设置</span>
+                     <button type="button" onClick={() => setIsOpen(false)} title="关闭对话框">
+                       <IconX className="absolute right-7 top-5 cursor-pointer text-gray-400" />
+                     </button>
+@@ -86,7 +86,7 @@
+                           }
+                         >
+                           <IconEar className="mr-2 text-neutral-500  dark:text-neutral-300" />
+-                          <span className="text-neutral-500 dark:text-neutral-300 ">音效设置</span>
++                          <span className="text-neutral-700 dark:text-neutral-300 ">音效设置</span>
+                         </Tab>
+                         <Tab
+                           className={({ selected }) =>
+@@ -97,7 +97,7 @@
+                           }
+                         >
+                           <IconAdjustmentsHorizontal className="mr-2 text-neutral-500  dark:text-neutral-300" />
+-                          <span className="text-neutral-500 dark:text-neutral-300">高级设置</span>
++                          <span className="text-neutral-700 dark:text-neutral-300">高级设置</span>
+                         </Tab>
+                         <Tab
+                           className={({ selected }) =>
+@@ -108,7 +108,7 @@
+                           }
+                         >
+                           <IconEye className="mr-2 text-neutral-500  dark:text-neutral-300" />
+-                          <span className="text-neutral-500 dark:text-neutral-300">显示设置</span>
++                          <span className="text-neutral-700 dark:text-neutral-300">显示设置</span>
+                         </Tab>
+                         <Tab
+                           className={({ selected }) =>
+@@ -119,7 +119,7 @@
+                           }
+                         >
+                           <IconDatabaseCog className="mr-2 text-neutral-500  dark:text-neutral-300" />
+-                          <span className="text-neutral-500 dark:text-neutral-300">数据设置</span>
++                          <span className="text-neutral-700 dark:text-neutral-300">数据设置</span>
+                         </Tab>
+                       </Tab.List>
+ 
+--- a/src/pages/Typing/components/Setting/index.module.css
++++ b/src/pages/Typing/components/Setting/index.module.css
+@@ -66,17 +66,17 @@
+   @apply flex w-full flex-col items-start gap-4;
+ }
+ .section-label {
+-  @apply pb-0 text-xl font-medium text-gray-600;
++  @apply pb-0 text-xl font-medium text-gray-600 dark:text-gray-100;
+ }
+ .section-description {
+-  @apply -mt-1 pl-4 text-left text-xs font-normal leading-tight text-gray-600;
++  @apply -mt-1 pl-4 text-left text-xs font-normal leading-tight text-gray-600 dark:text-gray-200;
+ }
+ 
+ .block {
+   @apply flex w-full flex-col items-start gap-2 py-0 pl-4;
+ }
+ .block-label {
+-  @apply font-medium text-gray-600;
++  @apply font-medium text-gray-600 dark:text-gray-100;
+ }
+ .switch-block {
+   composes: block;
+--- a/src/components/Footer/index.tsx
++++ b/src/components/Footer/index.tsx
+@@ -48,7 +48,7 @@
+         openState={infoPanelState.donate}
+         title="Buy us a coffee"
+         icon={IconCoffee}
+-        buttonClassName="bg-amber-500 hover:bg-amber-400"
++        buttonClassName="bg-amber-800 hover:bg-amber-700"
+         iconClassName="text-amber-500 bg-amber-100 dark:text-amber-300 dark:bg-amber-500"
+         onClose={() => handleCloseInfoPanel('donate')}
+       >
+--- a/src/components/DonateCard/index.tsx
++++ b/src/components/DonateCard/index.tsx
+@@ -149,7 +149,7 @@
+                   <div className="flex w-full justify-between  px-14 pb-3 pt-0">
+                     <button
+                       type="button"
+-                      className={`my-btn-primary ${!amount && 'invisible'} w-36 bg-amber-500 font-medium transition-all`}
++                      className={`my-btn-primary ${!amount && 'invisible'} w-36 bg-amber-800 font-medium transition-all`}
+                       onClick={onClickHasDonated}
+                     >
+                       我已捐赠
+--- a/src/pages/Typing/index.tsx
++++ b/src/pages/Typing/index.tsx
+@@ -140,7 +140,7 @@
+           <Tooltip content="跳过该词">
+             <button
+               className={`${
+-                state.isShowSkip ? 'bg-orange-400' : 'invisible w-0 bg-gray-300 px-0 opacity-0'
++                state.isShowSkip ? 'bg-orange-500' : 'invisible w-0 bg-gray-300 px-0 opacity-0'
+               } my-btn-primary transition-all duration-300 `}
+               onClick={skipWord}
+             >
