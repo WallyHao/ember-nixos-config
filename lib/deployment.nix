@@ -1,14 +1,15 @@
 {
   inventory,
+  hostName ? "ember",
 }:
 let
-  host = inventory.hosts.ember;
+  host = inventory.hosts.${hostName};
   storage = host.storage;
   storageBound =
     storage.targetDisk != null && storage.layoutModule != null && storage.layoutConfirmed;
 in
 {
-  target = "ember";
+  target = hostName;
   storageBound = storageBound;
   installable = storageBound;
   reason =

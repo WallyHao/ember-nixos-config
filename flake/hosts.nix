@@ -8,43 +8,52 @@ let
   evaluated = import ../lib/eval-inventory.nix {
     inherit lib inventory;
   };
-  deployment = import ../lib/deployment.nix {
-    inherit inventory;
-  };
-  host = evaluated.hosts.ember;
   mkHost = import ../lib/mk-host.nix;
+  hostNames = builtins.attrNames evaluated.hosts;
 
-  portable = mkHost {
-    inherit inputs inventory;
-    hostName = "ember";
-    hardwareModule = host.physicalHardwareModule;
-  };
+  deployments = lib.genAttrs hostNames (
+    hostName:
+    import ../lib/deployment.nix {
+      inherit inventory hostName;
+    }
+  );
+
+  makeHost =
+    hostName: storageModule:
+    mkHost {
+      inherit inputs inventory hostName;
+      hardwareModules = evaluated.hosts.${hostName}.hardwareModules;
+      inherit storageModule;
+    };
+
+  # A real target is exported only after that host's disk identity, layout and
+  # confirmation exist in inventory.
+  configurations = lib.mapAttrs (
+    hostName: _: (makeHost hostName evaluated.hosts.${hostName}.storage.layoutModule).system
+  ) (lib.filterAttrs (hostName: _: deployments.${hostName}.installable) evaluated.hosts);
+
+  portableModules = hostName: (makeHost hostName null).modules;
 in
 {
   flake = {
-    # A real target is exported only after the disk identity, layout and
-    # confirmation exist in inventory. Until then there is deliberately no
-    # nixosConfigurations.ember.
-    nixosConfigurations = lib.optionalAttrs deployment.installable rec {
-      ember =
-        (mkHost {
-          inherit inputs inventory;
-          hostName = "ember";
-          hardwareModule = host.physicalHardwareModule;
-          storageModule = host.storage.layoutModule;
-        }).system;
-      # Transitional alias builds the same Ember hostname.
-      hearth = ember;
+    nixosConfigurations =
+      configurations // lib.optionalAttrs (configurations ? ember) { hearth = configurations.ember; };
+
+    nixosModules = lib.optionalAttrs (evaluated.hosts ? ember) {
+      emberLaptop = {
+        imports = portableModules "ember";
+      };
+      hearthLaptop = {
+        imports = portableModules "ember";
+      };
     };
 
-    nixosModules.emberLaptop = {
-      imports = portable.modules;
-    };
-
-    lib.ember.deployment = deployment;
-    lib.hearth.deployment = deployment;
-    nixosModules.hearthLaptop = {
-      imports = portable.modules;
+    lib = {
+      inherit deployments;
+    }
+    // lib.optionalAttrs (deployments ? ember) {
+      ember.deployment = deployments.ember;
+      hearth.deployment = deployments.ember;
     };
   };
 }

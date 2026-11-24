@@ -14,6 +14,15 @@ in
     description = "Install the Steam/Proton gaming runtime for the Ember desktop.";
   };
 
+  options.ember.gaming.nvidiaOffload = lib.mkOption {
+    type = lib.types.bool;
+    default = false;
+    description = ''
+      Configure PRIME render offload for a hybrid laptop whose integrated GPU
+      drives the display. Machines whose discrete GPU is primary leave this off.
+    '';
+  };
+
   config = lib.mkIf cfg.enable {
     # Steam is a system component rather than a profile application: it needs
     # the 32-bit graphics stack, pressure-vessel helpers, controller udev rules
@@ -47,13 +56,13 @@ in
     programs.gamemode.enable = true;
 
     # Nested gamescope for fullscreen games: stable swapchain, cursor grab,
-    # resolution scaling and FSR. The environment defaults put gamescope and
-    # therefore the game on the RTX 4060, while Niri itself stays on the Intel
-    # iGPU. Every value remains overridable at runtime.
+    # resolution scaling and FSR. On a hybrid laptop these defaults put
+    # gamescope and therefore the game on the NVIDIA GPU while the compositor
+    # stays on the integrated GPU. Every value remains overridable at runtime.
     programs.gamescope = {
       enable = true;
       capSysNice = true;
-      env = {
+      env = lib.mkIf cfg.nvidiaOffload {
         __NV_PRIME_RENDER_OFFLOAD = "1";
         __NV_PRIME_RENDER_OFFLOAD_PROVIDER = "NVIDIA-G0";
         __GLX_VENDOR_LIBRARY_NAME = "nvidia";
@@ -62,14 +71,14 @@ in
     };
 
     # `nvidia-offload steam` covers a whole session; per-game launch options
-    # use the same four variables directly (see docs/gaming.md). PRIME offload
-    # itself stays enabled in hosts/ember/hardware.nix.
-    hardware.nvidia.prime.offload.enableOffloadCmd = true;
+    # use the same four variables directly (see docs/gaming.md). The wrapper
+    # only exists on hosts that select hybrid NVIDIA offload.
+    hardware.nvidia.prime.offload.enableOffloadCmd = lib.mkIf cfg.nvidiaOffload true;
 
     assertions = [
       {
-        assertion = config.hardware.nvidia.prime.offload.enable;
-        message = "ember.gaming expects PRIME render offload; the RTX 4060 is not the display GPU.";
+        assertion = !cfg.nvidiaOffload || config.hardware.nvidia.prime.offload.enable;
+        message = "ember.gaming.nvidiaOffload requires PRIME render offload in the host hardware module.";
       }
       {
         assertion = config.ember.desktop.enable;

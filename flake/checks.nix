@@ -11,21 +11,32 @@
       deployment = import ../lib/deployment.nix {
         inherit inventory;
       };
-      host =
-        (import ../lib/eval-inventory.nix {
-          lib = inputs.nixpkgs.lib;
-          inherit inventory;
-        }).hosts.ember;
+      evaluated = import ../lib/eval-inventory.nix {
+        lib = inputs.nixpkgs.lib;
+        inherit inventory;
+      };
+      host = evaluated.hosts.ember;
+      forge = evaluated.hosts.forge;
 
       preview = (import ../lib/mk-host.nix) {
         inherit inputs inventory;
         hostName = "ember";
-        hardwareModule = host.physicalHardwareModule;
+        hardwareModules = host.hardwareModules;
+        storageModule = ../tests/fixtures/storage.nix;
+      };
+
+      forgePreview = (import ../lib/mk-host.nix) {
+        inherit inputs inventory;
+        hostName = "forge";
+        hardwareModules = forge.hardwareModules;
         storageModule = ../tests/fixtures/storage.nix;
       };
 
       previewToplevel = preview.system.config.system.build.toplevel;
       previewCfg = preview.system.config;
+      forgeToplevel = forgePreview.system.config.system.build.toplevel;
+      forgeCfg = forgePreview.system.config;
+      forgeHmCfg = forgeCfg.home-manager.users.wallyhao;
       realCfg = self.nixosConfigurations.ember.config;
       hmCfg = previewCfg.home-manager.users.wallyhao;
       niriConfig = hmCfg.xdg.configFile."niri/config.kdl".source;
@@ -52,6 +63,7 @@
     in
     {
       packages.system-preview = previewToplevel;
+      packages.system-preview-forge = forgeToplevel;
       packages.migration-tool = pkgs.writeShellApplication {
         name = "ember-migrate-folio-data";
         runtimeInputs = [ pkgs.util-linux ];
@@ -118,6 +130,28 @@
         vm-user-environment = import ../tests/vm/user-environment.nix vmArgs;
         vm-connectivity = import ../tests/vm/connectivity.nix vmArgs;
         vm-file-drop = import ../tests/vm/file-drop.nix vmArgs;
+
+        # Cross-machine contract: the shared closure provides both vendors'
+        # drivers, while host overlays own PRIME, DRM and KVM policy.
+        hardware-profiles =
+          assert forgeCfg.hardware.cpu.intel.updateMicrocode;
+          assert forgeCfg.hardware.cpu.amd.updateMicrocode;
+          assert builtins.elem "i915" forgeCfg.boot.initrd.kernelModules;
+          assert builtins.elem "amdgpu" forgeCfg.boot.initrd.kernelModules;
+          assert forgeCfg.hardware.nvidia.open;
+          assert builtins.elem "nvidia" forgeCfg.services.xserver.videoDrivers;
+          assert builtins.elem "amdgpu" forgeCfg.services.xserver.videoDrivers;
+          assert !forgeCfg.hardware.nvidia.prime.offload.enable;
+          assert forgeCfg.ember.hardware.kvmModule == "kvm-amd";
+          assert forgeHmCfg.ember.desktop.ignoreDrmDevice == null;
+          assert previewCfg.ember.hardware.kvmModule == "kvm-intel";
+          assert previewCfg.hardware.nvidia.prime.offload.enable;
+          assert hmCfg.ember.desktop.ignoreDrmDevice != null;
+          pkgs.runCommand "ember-hardware-profiles" { } ''
+            # Instantiating both toplevels must not evaluate host-specific
+            # policy into the shared closure.
+            printf '%s\n%s\n' "${previewToplevel.drvPath}" "${forgeToplevel.drvPath}" > $out
+          '';
       };
     };
 }

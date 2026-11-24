@@ -11,6 +11,15 @@
     description = "Bridge the system desktop switch into the Home Manager environment.";
   };
 
+  options.ember.desktop.ignoreDrmDevice = lib.mkOption {
+    type = lib.types.nullOr lib.types.str;
+    default = osConfig.ember.hardware.ignoreDrmDevice or null;
+    description = ''
+      DRM device path Niri should ignore. Defaults to the host hardware policy;
+      leave null on a machine whose discrete GPU drives the display.
+    '';
+  };
+
   options.ember.desktop.modifier = lib.mkOption {
     type = lib.types.str;
     default = "Super";

@@ -1,11 +1,13 @@
 {
   imports = [
-    ../../suites/nixos/laptop.nix
+    ../../suites/nixos/workstation.nix
     ./power.nix
-    ./nixos-cli.nix
   ];
 
-  # The gaming stack is opt-in on this host even though modules/gaming.nix
-  # defaults the switch to true. Flip it back when games are actually wanted.
-  ember.gaming.enable = false;
+  # Steam/Proton stack on the RTX 4060. VM checks override this to false.
+  ember.gaming = {
+    enable = true;
+    # Hybrid laptop: i915 drives the panel, the RTX 4060 renders on request.
+    nvidiaOffload = true;
+  };
 }

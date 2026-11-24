@@ -27,6 +27,7 @@ jobs:
           ./scripts/ember build
           nix build --no-link --no-update-lock-file \
             path:.#checks.x86_64-linux.storage-layout \
+            path:.#checks.x86_64-linux.hardware-profiles \
             path:.#checks.x86_64-linux.desktop-config \
             path:.#checks.x86_64-linux.refresh
 

@@ -2,7 +2,7 @@
   inputs,
   inventory,
   hostName,
-  hardwareModule,
+  hardwareModules,
   storageModule ? null,
   extraModules ? [ ],
   usePersistenceModule ? true,
@@ -40,7 +40,9 @@ let
     inputs.stylix.nixosModules.stylix
     inputs.nixos-cli.nixosModules.nixos-cli
     host.hostModule
-    hardwareModule
+  ]
+  ++ hardwareModules
+  ++ [
     identityModule
     inputs.home-manager.nixosModules.home-manager
   ]

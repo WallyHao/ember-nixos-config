@@ -24,11 +24,6 @@ in
       portalPackage = null;
 
       settings = {
-        # Keep the dGPU out of niri's DRM enumeration so NVIDIA runtime D3 can
-        # suspend it while idle. PRIME offload still works for clients that
-        # explicitly request the discrete GPU.
-        debug."ignore-drm-device" = "/dev/dri/by-path/pci-0000:01:00.0-render";
-
         input = {
           keyboard.xkb.layout = "us";
           touchpad.natural-scroll = { };
@@ -124,6 +119,12 @@ in
           inherit modifier;
           actions = config.ember.desktop.actions;
         };
+      }
+      // lib.optionalAttrs (config.ember.desktop.ignoreDrmDevice != null) {
+        # Host policy: keep a laptop dGPU out of Niri's DRM enumeration so
+        # NVIDIA runtime D3 can suspend it. A desktop whose discrete GPU drives
+        # the display leaves this null.
+        debug."ignore-drm-device" = config.ember.desktop.ignoreDrmDevice;
       };
     };
   };

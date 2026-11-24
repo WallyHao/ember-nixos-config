@@ -20,7 +20,7 @@ let
   hostResult = (import ../../lib/mk-host.nix) {
     inherit inputs inventory;
     hostName = "ember";
-    hardwareModule = ../fixtures/hardware.nix;
+    hardwareModules = [ ../fixtures/hardware.nix ];
     storageModule = null;
   };
 
@@ -89,7 +89,7 @@ makeDiskoTest {
     # The VM has no real GPU. Keep Steam and the 32-bit graphics stack out of
     # every VM closure: they would dominate build time and prove nothing on
     # virtio-gpu. Production keeps ember.gaming.enable at its default.
-    ember.gaming.enable = false;
+    ember.gaming.enable = pkgs.lib.mkForce false;
 
     # Test-only tooling for real PAM/TTY login checks. It is not part of the
     # target system package set.

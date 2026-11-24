@@ -25,8 +25,8 @@ EOF
 
 require_ember_user() {
   if [ "$(id -u)" -ne 1000 ] || [ "$(id -un)" != wallyhao ] ||
-    [[ "$(< /proc/sys/kernel/hostname)" != ember && "$(< /proc/sys/kernel/hostname)" != hearth ]] || [ "$HOME" != /home/wallyhao ]; then
-    echo 'Run this command as wallyhao on Ember, without sudo.' >&2
+    [[ "$(< /proc/sys/kernel/hostname)" != ember && "$(< /proc/sys/kernel/hostname)" != hearth && "$(< /proc/sys/kernel/hostname)" != forge ]] || [ "$HOME" != /home/wallyhao ]; then
+    echo 'Run this command as wallyhao on Ember or Forge, without sudo.' >&2
     return 2
   fi
 }
@@ -520,10 +520,11 @@ main() {
       exec sudo "$tool/bin/ember-migrate-folio-data" --target-root /mnt
       ;;
     info)
-      printf 'target: ember\n'
+      printf 'hosts: ember (laptop), forge (desktop)\n'
       printf 'user: wallyhao (uid 1000, /home/wallyhao)\n'
-      nix eval --json --no-update-lock-file path:.#lib.ember.deployment | python3 -m json.tool
+      nix eval --json --no-update-lock-file path:.#lib.deployments | python3 -m json.tool
       printf 'system-preview: nix build path:.#packages.x86_64-linux.system-preview\n'
+      printf 'system-preview-forge: nix build path:.#packages.x86_64-linux.system-preview-forge\n'
       ;;
     check)
       static_scan

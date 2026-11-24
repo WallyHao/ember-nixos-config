@@ -84,9 +84,13 @@ let
     && require (
       (host.hostModule or null) != null && pathExists host.hostModule
     ) "hosts.${hostName}.hostModule must point to an existing file or directory"
-    && require (
-      (host.physicalHardwareModule or null) != null && pathExists host.physicalHardwareModule
-    ) "hosts.${hostName}.physicalHardwareModule must point to an existing file"
+    && require (isList (
+      host.hardwareModules or null
+    )) "hosts.${hostName}.hardwareModules must be a list"
+    && require (host.hardwareModules != [ ]) "hosts.${hostName}.hardwareModules must not be empty"
+    && require (builtins.all (
+      module: (isPath module || isString module) && pathExists module
+    ) host.hardwareModules) "hosts.${hostName}.hardwareModules must point to existing files"
     && require (isList (host.users or null)) "hosts.${hostName}.users must be a list"
     && require (host.users != [ ]) "hosts.${hostName}.users must not be empty"
     && require (builtins.all (
@@ -100,6 +104,7 @@ let
   userChecks = builtins.all (userName: checkUser userName users.${userName}) (attrNames users);
   hostChecks = builtins.all (hostName: checkHost hostName hosts.${hostName}) (attrNames hosts);
   allUids = map (userName: users.${userName}.uid) (attrNames users);
+  allHostNames = map (hostName: hosts.${hostName}.hostName) (attrNames hosts);
 in
 if
   require (isAttrs inventory) "inventory must be an attrset"
@@ -110,6 +115,9 @@ if
   && require (
     length (lib.unique allUids) == length allUids
   ) "user UIDs must be unique across inventory"
+  && require (
+    length (lib.unique allHostNames) == length allHostNames
+  ) "hostnames must be unique across inventory"
 then
   inventory
 else

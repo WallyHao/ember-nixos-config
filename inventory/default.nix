@@ -4,9 +4,30 @@
     hostName = "ember";
     stateVersion = "26.11";
     hostModule = ../hosts/ember;
-    physicalHardwareModule = ../hosts/ember/hardware.nix;
+    # Shared driver closure first, then the machine's observed facts and
+    # overrides. This is the only place that selects hardware policy.
+    hardwareModules = [
+      ../hosts/hardware/portable.nix
+      ../hosts/ember/hardware.nix
+    ];
     users = [ "wallyhao" ];
     storage = import ../hosts/ember/storage-spec.nix;
+  };
+
+  # AMD Ryzen 7 9700X / RTX 3090 desktop recorded in the Folio configuration.
+  # Storage stays unbound until its disk identity and layout are inspected, so
+  # deployment remains gated in lib/deployment.nix.
+  hosts.forge = {
+    system = "x86_64-linux";
+    hostName = "forge";
+    stateVersion = "26.11";
+    hostModule = ../hosts/forge;
+    hardwareModules = [
+      ../hosts/hardware/portable.nix
+      ../hosts/forge/hardware.nix
+    ];
+    users = [ "wallyhao" ];
+    storage = import ../hosts/forge/storage-spec.nix;
   };
 
   users.wallyhao = {

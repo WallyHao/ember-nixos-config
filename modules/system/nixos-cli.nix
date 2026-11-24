@@ -7,7 +7,7 @@
 }:
 let
   upstream = inputs.nixos-cli.packages.${pkgs.stdenv.hostPlatform.system}.nixos-cli;
-  refresh = import ../../modules/maintenance/refresh.nix { inherit config lib pkgs; };
+  refresh = import ../maintenance/refresh.nix { inherit config lib pkgs; };
   entry = pkgs.writeShellApplication {
     name = "nixos";
     text = ''

@@ -14,7 +14,7 @@ let
   preview = mkHost {
     inherit inputs inventory;
     hostName = "ember";
-    hardwareModule = inventory.hosts.ember.physicalHardwareModule;
+    hardwareModules = inventory.hosts.ember.hardwareModules;
     storageModule = ../fixtures/storage.nix;
   };
 
@@ -79,6 +79,22 @@ let
     };
   };
 
+  emptyHardwareInventory = inventory // {
+    hosts = inventory.hosts // {
+      ember = inventory.hosts.ember // {
+        hardwareModules = [ ];
+      };
+    };
+  };
+
+  duplicateHostnameInventory = inventory // {
+    hosts = inventory.hosts // {
+      forge = inventory.hosts.forge // {
+        hostName = "ember";
+      };
+    };
+  };
+
   negative = [
     (mustFail "duplicate-uid" (schema {
       inherit lib;
@@ -91,6 +107,14 @@ let
     (mustFail "partial-storage" (schema {
       inherit lib;
       inventory = partialStorageInventory;
+    }))
+    (mustFail "empty-hardware" (schema {
+      inherit lib;
+      inventory = emptyHardwareInventory;
+    }))
+    (mustFail "duplicate-hostname" (schema {
+      inherit lib;
+      inventory = duplicateHostnameInventory;
     }))
     (mustFail "tlp-with-ppd" (
       (lib.nixosSystem {
