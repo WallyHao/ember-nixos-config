@@ -15,6 +15,7 @@ single `default.nix` entry point; a simple module is one `.nix` file.
 | `terminal/` | Home Manager | Foot, Zsh, direnv, terminal tools, Tmux |
 | `nixvim/` | Home Manager | NixVim editor, LSP servers and CSS resources |
 | `programs/` | Home Manager | configuration for profile-installed applications |
+| `isaac/` | Home Manager | Isaac Sim / Isaac Lab FHS environment and launchers, enabled per host |
 | `gaming.nix` | NixOS | Steam and the gaming runtime |
 
 Consumers import only the public module path, never an internal file. For

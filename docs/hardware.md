@@ -88,21 +88,24 @@ declaration data, not a fresh observation from this repository:
 | Discrete GPU | NVIDIA RTX 3090 |
 | Wi-Fi | RZ616 / MediaTek MT7922 class adapter |
 | Ethernet | Realtek RTL8125 2.5GbE |
-| Storage | Not inspected; `hosts/forge/storage-spec.nix` stays unbound |
+| Storage | External ZHITAI 1 TB USB SSD, bound in `hosts/forge/storage-spec.nix`; internal NVMe excluded |
 
 ### Forge-specific policy
 
-- No PRIME wiring: PCI matching loads `amdgpu` and `nvidia`; Niri keeps every
-  DRM device visible because the RTX 3090 drives the display.
-- No fine-grained NVIDIA power management and no hybrid offload wrapper.
+- PRIME render offload: the monitor is connected to the motherboard DP output,
+  so `amdgpu` drives the display and the RTX 3090 renders on request.
+  `hosts/forge/hardware.nix` declares `amdgpuBusId = "PCI:16:0:0"` and
+  `nvidiaBusId = "PCI:1:0:0"` (decimal bus IDs: `0000:10:00.0` and
+  `0000:01:00.0`).
+- No fine-grained NVIDIA power management; the host uses the offload wrapper
+  and per-game environment instead.
 - `kvm-amd` is loaded explicitly.
 - TLP applies mains-only AMD P-State/EPP settings; no battery or ACPI platform
   profile keys are declared.
 
-If the monitors are later moved to the motherboard outputs, add PRIME offload
-with the desktop's AMD bus ID in `hosts/forge/hardware.nix` and set
-`ember.gaming.nvidiaOffload = true`. CUDA/compute workloads do not require that
-change. Do not copy the laptop's Intel bus IDs.
+If the monitors are moved to the RTX 3090 outputs, remove the PRIME block and
+set `ember.gaming.nvidiaOffload = false`. CUDA/compute workloads do not require
+either change.
 
 ## Hardware report (nixos-facter)
 
@@ -132,14 +135,18 @@ as `HEARTH_EFI` at `/boot`, and a `hearth-system` Btrfs partition labelled
 a tmpfs. Those labels and the by-id identifiers are intentional compatibility
 state; do not rename or re-partition them.
 
-The desktop disk is a different physical device and has not been inspected.
-`hosts/forge/storage-spec.nix` keeps `targetDisk`, `layoutModule` and
-`layoutConfirmed` unset, so `nixosConfigurations.forge` is not exported until an
-operator records a reviewed layout. Forge is intended to use the same
-tmpfs-root, `@nix`/`@persist` preservation model as the laptop; a conventional
-persistent root requires a different layout module and adjustments to
-`modules/system/persistence.nix`. Do not copy the laptop's identifiers or
-labels to the desktop.
+The desktop uses a separate external ZHITAI 1 TB USB SSD
+(`usb-ZHITAI_SPIRIT_PREMIUM_ZTE51T0AL262824228-0:0`). Its layout is declared in
+`hosts/forge/storage-layout.nix`: an `ember-esp` partition formatted as
+`EMBER_EFI` at `/boot`, and an `ember-system` Btrfs partition labelled
+`EMBER_SYSTEM` providing the `@nix` and `@persist` subvolumes, while `/` stays a
+tmpfs. The internal 2 TB NVMe holds unrelated Windows/data partitions and is
+deliberately not referenced. The USB by-id path includes the drive serial, not
+the port.
+
+A conventional persistent root still requires a different layout module and
+adjustments to `modules/system/persistence.nix`. Do not point
+`hosts/forge/storage-spec.nix` at the laptop's NVMe identifiers.
 
 No serial number, WWN, filesystem UUID or secret is recorded here, and device
 names are not stable identities: layouts are bound by declaration and label,

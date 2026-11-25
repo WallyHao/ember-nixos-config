@@ -47,7 +47,8 @@ the portable `nixosModules.emberLaptop` and preview outputs exist.
 | Editor | NixVim with LSP servers and managed themes |
 | Input method | Fcitx5 + Rime, configured by the system session |
 | Browser and AI tools | Zen Browser and OMP, installed by the user profile |
-| Files and images | Yazi, udiskie auto-mount, imv, Satty screenshots |
+| Files and images | Yazi, Zathura, udiskie auto-mount, imv, Satty screenshots |
+| Screen recording | OBS Studio, installed by the user profile |
 | Network | NetworkManager + systemd-resolved, Mihomo proxy, `file-drop` |
 | Audio | PipeWire and WirePlumber |
 | Virtual machines | libvirt + QEMU/KVM, `virt-manager`, KVM-accelerated |
@@ -85,11 +86,12 @@ user profile lives at `~/.local/state/nix/profiles/profile`; edit
 ## Deployment
 
 The laptop configuration has been built and exercised in VMs, but it has **not**
-been installed or activated on the host yet. The desktop has not even had its disk
-inspected, so `nixosConfigurations.forge` is intentionally absent. Both system
-previews use fixture storage and never select a physical disk. Proxy subscriptions,
-saved network connections and other private runtime data are not part of this
-repository.
+been installed or activated on the host yet. The desktop's external 1 TB USB SSD
+is recorded in `hosts/forge/storage-spec.nix`, so `nixosConfigurations.forge` is
+exported, but it has not been installed either. The internal NVMe is not touched.
+Both system previews use fixture storage and never select a physical disk. Proxy
+subscriptions, saved network connections and other private runtime data are not
+part of this repository.
 
 The two hosts are supported; arbitrary machines are not. To adapt another machine,
 start from `inventory/`, add a `hosts/<name>/` overlay and storage declaration,

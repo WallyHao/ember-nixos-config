@@ -4,6 +4,8 @@
 {
   packages = [
     "zen"
+    "obs-studio"
+    "zathura"
     "powertop"
     "powerstat"
     "intel-gpu-tools"

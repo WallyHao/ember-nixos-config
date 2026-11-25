@@ -6,6 +6,7 @@
     ../../modules/terminal
     ../../modules/nixvim
     ../../modules/programs
+    ../../modules/isaac
     ./git.nix
     ./preferences.nix
   ];

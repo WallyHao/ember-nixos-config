@@ -1,11 +1,10 @@
 # Deployment
 
-How to move this repository onto the internal disk of a supported machine.
-Nothing here runs automatically, and none of it has been performed from this
-repository: the laptop has not been activated, the desktop disk has not been
-inspected, and the private Folio data has not been copied. Commands that install
-or activate need the operator's own decision and a fresh check of the running
-host and the target mounts.
+How to move this repository onto the target disk of a supported machine.
+Nothing here runs automatically: the laptop has not been activated, the desktop
+external USB SSD is recorded but not installed, and the private Folio data has
+not been copied. Commands that install or activate need the operator's own
+decision and a fresh check of the running host and the target mounts.
 
 The system toplevel used below must come from a build of this repository that
 you produced and verified, never from `system-preview` or
@@ -16,7 +15,7 @@ you produced and verified, never from `system-preview` or
 | Host | State |
 | --- | --- |
 | `ember` | Laptop disk bound and confirmed; deployment gated on the operator actually running it. |
-| `forge` | Desktop hardware recorded, but `hosts/forge/storage-spec.nix` is unbound. Inspect the disk, write a reviewed layout module, then set `targetDisk`, `layoutModule` and `layoutConfirmed = true`. |
+| `forge` | Desktop external 1 TB USB SSD bound and confirmed; internal NVMe is excluded. Not installed yet. |
 
 Adding another machine means adding an inventory host, a hardware overlay and a
 storage declaration. Do not reuse `ember` storage identifiers, PRIME bus IDs or
@@ -148,9 +147,9 @@ sudo nixos apply --no-update-lock-file
 ```
 
 Keep the previous generation for rollback. A generation that only changes the
-initrd or kernel still needs a reboot before that part is exercised. Do not run
-`nixos apply` for `forge` until `nixosConfigurations.forge` exists; the unbound
-storage gate deliberately removes it.
+initrd or kernel still needs a reboot before that part is exercised. `forge` is
+bound to its external USB SSD, but it is not installed yet; perform the install
+from an installer environment first, then use `nixos apply` on later updates.
 
 ## 5. After the first boot
 

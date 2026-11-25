@@ -28,6 +28,38 @@
       directory = ".config/gh";
       mode = "0700";
     }
+    {
+      # OBS profiles, scenes and global settings. Recordings default to
+      # ~/Videos, which is preserved below.
+      directory = ".config/obs-studio";
+      mode = "0700";
+    }
+    {
+      # Zathura stores zathurarc overrides here.
+      directory = ".config/zathura";
+      mode = "0700";
+    }
+    {
+      # Zathura keeps bookmarks and document history here.
+      directory = ".local/share/zathura";
+      mode = "0700";
+    }
+    {
+      # Isaac Lab environments, active manifest and nix-store roots. The
+      # Folio namespace is retained so environments copied from a Folio
+      # installation keep resolving their existing paths.
+      directory = ".local/share/folio/isaac";
+      mode = "0700";
+    }
+    {
+      directory = ".local/state/folio/isaac";
+      mode = "0700";
+    }
+    {
+      # isaac-setup's uv wheel and source cache.
+      directory = ".cache/folio/isaac";
+      mode = "0700";
+    }
     ".local/state/nix"
     {
       directory = ".local/state/nix/profiles";
@@ -107,5 +139,7 @@
     "Downloads"
     "Pictures"
     "Pictures/Screenshots"
+    # OBS Studio's default recording and replay-buffer output.
+    "Videos"
   ];
 }

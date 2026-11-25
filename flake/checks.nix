@@ -141,7 +141,10 @@
           assert forgeCfg.hardware.nvidia.open;
           assert builtins.elem "nvidia" forgeCfg.services.xserver.videoDrivers;
           assert builtins.elem "amdgpu" forgeCfg.services.xserver.videoDrivers;
-          assert !forgeCfg.hardware.nvidia.prime.offload.enable;
+          assert forgeCfg.hardware.nvidia.prime.offload.enable;
+          assert forgeCfg.hardware.nvidia.prime.amdgpuBusId == "PCI:16:0:0";
+          assert forgeCfg.hardware.nvidia.prime.nvidiaBusId == "PCI:1:0:0";
+          assert forgeCfg.ember.gaming.nvidiaOffload;
           assert forgeCfg.ember.hardware.kvmModule == "kvm-amd";
           assert forgeHmCfg.ember.desktop.ignoreDrmDevice == null;
           assert previewCfg.ember.hardware.kvmModule == "kvm-intel";

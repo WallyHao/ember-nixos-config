@@ -30,9 +30,11 @@ hosts/ember/
 
 hosts/forge/
   default.nix              host policy; imports the workstation suite
-  hardware.nix             observed facts, AMD KVM, desktop initrd
+  hardware.nix             observed facts, PRIME offload, AMD KVM, desktop initrd
   power.nix                desktop TLP parameters
-  storage-spec.nix         unbound until the desktop disk is inspected
+  storage-spec.nix         external USB target, layout module, confirmation
+  storage.nix              binds storage-spec to the layout
+  storage-layout.nix       disko partitions, Btrfs subvolumes, tmpfs root
 
 suites/nixos/
   base.nix                 system, network, power, appearance
@@ -58,10 +60,11 @@ modules/
   terminal/                Foot, Zsh, terminal tools and p10k
   nixvim/                  NixVim editor, LSP servers and CSS resources
   programs/                configuration for profile-installed applications
+  isaac/                   Isaac Sim / Isaac Lab FHS environment and launchers
   gaming.nix               Steam, GE-Proton, GameMode, Gamescope, XWayland
 
 users/wallyhao/
-  home.nix                 imports desktop, niri, terminal, nixvim, programs
+  home.nix                 imports desktop, niri, terminal, nixvim, programs, isaac
   preferences.nix          user preferences
   persistence.nix          user persistent directories
   bootstrap-password.nix   local initial-hash loader
@@ -228,6 +231,13 @@ back into the tmpfs root, including:
 /persist/home/wallyhao/Documents
 /persist/home/wallyhao/Downloads
 /persist/home/wallyhao/Pictures
+/persist/home/wallyhao/Videos
+/persist/home/wallyhao/.config/obs-studio
+/persist/home/wallyhao/.config/zathura
+/persist/home/wallyhao/.local/share/zathura
+/persist/home/wallyhao/.local/share/folio/isaac
+/persist/home/wallyhao/.local/state/folio/isaac
+/persist/home/wallyhao/.cache/folio/isaac
 /persist/home/wallyhao/.local/state/nix
 /persist/home/wallyhao/.local/share/Steam
 ```

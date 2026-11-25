@@ -24,7 +24,18 @@
     "snd_hda_intel"
   ];
 
-  # No PRIME wiring: PCI matching selects amdgpu and nvidia, and the display
-  # runs on the RTX 3090. Niri keeps every DRM device visible.
+  # Current desk wiring: the monitor is connected to the motherboard DP
+  # output, so the AMD iGPU drives the display and the RTX 3090 is the
+  # render/offload and compute device. Bus IDs are decimal:
+  # 0000:10:00.0 -> PCI:16:0:0, 0000:01:00.0 -> PCI:1:0:0.
+  # If the monitor is later moved to the RTX 3090, remove this block and set
+  # ember.gaming.nvidiaOffload = false in hosts/forge/default.nix.
+  hardware.nvidia.prime = {
+    offload.enable = true;
+    offload.enableOffloadCmd = true;
+    amdgpuBusId = "PCI:16:0:0";
+    nvidiaBusId = "PCI:1:0:0";
+  };
+
   ember.hardware.kvmModule = "kvm-amd";
 }

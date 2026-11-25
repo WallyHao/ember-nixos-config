@@ -91,6 +91,10 @@ makeDiskoTest {
     # virtio-gpu. Production keeps ember.gaming.enable at its default.
     ember.gaming.enable = pkgs.lib.mkForce false;
 
+    # Isaac needs a real CUDA/Vulkan device and a large FHS closure; it cannot
+    # be exercised here. Host activation keeps the user's declared value.
+    ember.isaac.enable = pkgs.lib.mkForce false;
+
     # Test-only tooling for real PAM/TTY login checks. It is not part of the
     # target system package set.
     environment.systemPackages = [ pkgs.expect ];

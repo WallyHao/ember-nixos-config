@@ -6,6 +6,7 @@
     ./platform.nix
     ./hardware.nix
     ./virtualisation.nix
+    ./isaac.nix
     ./foundation.nix
     ./memory.nix
     ./persistence.nix

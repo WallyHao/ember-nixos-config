@@ -30,7 +30,7 @@ the switch builds it. Nothing below is usable until then.
 | GameMode | Scheduling priority for the launched game | system |
 | Gamescope | Nested fullscreen compositor, cursor grab, FSR upscaling | system |
 | MangoHud | FPS/frame-time/GPU overlay | system |
-| `nvidia-offload` | PRIME render offload wrapper for the RTX 4060 (ember only) | system (NVIDIA module) |
+| `nvidia-offload` | PRIME render offload wrapper for the RTX 4060/3090 | system (NVIDIA module) |
 | On-demand VRR | Variable refresh only while a game window is visible | Home Manager Niri config |
 
 Steam is a system component, not a profile package: the `steam` wrapper needs
@@ -44,10 +44,13 @@ This section applies to `ember`, the Intel/NVIDIA laptop. Its Intel iGPU
 remains the display GPU; the RTX 4060 is a PRIME offload device, so a game
 that is not told to use it renders on the iGPU.
 
-`forge` has the opposite layout: the RTX 3090 drives the display and
-`ember.gaming.nvidiaOffload = false` removes the offload variables and the
-`nvidia-offload` wrapper. Steam and games use the primary GPU without extra
-environment.
+`forge` currently uses the same layout: the monitor is connected to the
+motherboard DP output, so the AMD iGPU drives the display and the RTX 3090 is
+the PRIME offload and compute device. `hosts/forge/hardware.nix` declares the
+AMD/NVIDIA bus IDs and `ember.gaming.nvidiaOffload = true` supplies the offload
+variables and the `nvidia-offload` wrapper. If the monitor is moved to an RTX
+3090 output, remove the PRIME block and set `nvidiaOffload = false` so Steam
+uses the primary GPU directly.
 
 Two supported ways to put a game on the RTX 4060 on `ember`:
 
